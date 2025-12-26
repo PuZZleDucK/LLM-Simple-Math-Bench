@@ -319,6 +319,16 @@ tbody tr.row-excluded:hover {
   font-size: 0.85rem;
 }
 
+.score-chip--max {
+  background: rgba(74, 201, 124, 0.25);
+  color: #d5ffe1;
+}
+
+.score-chip--zero {
+  background: rgba(233, 88, 80, 0.25);
+  color: #ffd6d2;
+}
+
 .score-stack {
   display: flex;
   flex-direction: column;

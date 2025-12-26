@@ -2,6 +2,7 @@ const OLLAMA_URL = "http://dundee.tail31c56b.ts.net:11434";
 const RESULTS_ENDPOINT = "/api/results";
 const RAW_RESULTS_ENDPOINT = "/api/results.csv";
 const CLEAR_RESULTS_ENDPOINT = "/api/clear";
+const UI_STATE_KEY = "ollama-bench-ui-v1";
 
 const tests = [
   createMultiPromptTest({
@@ -24,6 +25,28 @@ const tests = [
       { id: "11-3", prompt: "Compute: 11 - 3. Respond only with the answer in digits.", expected: "8" },
       { id: "67-32", prompt: "Compute: 67 - 32. Respond only with the answer in digits.", expected: "35" },
       { id: "97-58", prompt: "Compute: 97 - 58. Respond only with the answer in digits.", expected: "39" },
+    ],
+  }),
+  createMultiPromptTest({
+    id: "simple-multiplication",
+    name: "Simple Multiplication",
+    cases: [
+      { id: "1*4", prompt: "Compute: 1 * 4. Respond only with the answer in digits.", expected: "4" },
+      { id: "2*8", prompt: "Compute: 2 * 8. Respond only with the answer in digits.", expected: "16" },
+      { id: "3*7", prompt: "Compute: 3 * 7. Respond only with the answer in digits.", expected: "21" },
+      { id: "5*12", prompt: "Compute: 5 * 12. Respond only with the answer in digits.", expected: "60" },
+      { id: "13*23", prompt: "Compute: 13 * 23. Respond only with the answer in digits.", expected: "299" },
+    ],
+  }),
+  createMultiPromptTest({
+    id: "simple-division",
+    name: "Simple Division",
+    cases: [
+      { id: "3/1", prompt: "Compute: 3 / 1. Respond only with the answer in digits.", expected: "3" },
+      { id: "7/7", prompt: "Compute: 7 / 7. Respond only with the answer in digits.", expected: "1" },
+      { id: "15/5", prompt: "Compute: 15 / 5. Respond only with the answer in digits.", expected: "3" },
+      { id: "60/15", prompt: "Compute: 60 / 15. Respond only with the answer in digits.", expected: "4" },
+      { id: "100/20", prompt: "Compute: 100 / 20. Respond only with the answer in digits.", expected: "5" },
     ],
   }),
 ];
@@ -60,6 +83,7 @@ const elements = {
 init();
 
 async function init() {
+  loadUiStateFromStorage();
   bindEvents();
   await loadResults();
   updateSummary();
@@ -75,6 +99,47 @@ function bindEvents() {
   elements.regexInput.addEventListener("input", handleFilterChange);
   elements.minSizeInput.addEventListener("input", handleFilterChange);
   elements.maxSizeInput.addEventListener("input", handleFilterChange);
+}
+
+function loadUiStateFromStorage() {
+  try {
+    const raw = localStorage.getItem(UI_STATE_KEY);
+    if (!raw) {
+      return;
+    }
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") {
+      return;
+    }
+    if (typeof parsed.regex === "string") {
+      elements.regexInput.value = parsed.regex;
+    }
+    if (typeof parsed.min === "string") {
+      elements.minSizeInput.value = parsed.min;
+    }
+    if (typeof parsed.max === "string") {
+      elements.maxSizeInput.value = parsed.max;
+    }
+    if (Array.isArray(parsed.excluded)) {
+      state.excludedModels = new Set(parsed.excluded.filter(Boolean));
+    }
+  } catch (error) {
+    console.warn("Failed to load UI state", error);
+  }
+}
+
+function saveUiStateToStorage() {
+  const payload = {
+    regex: elements.regexInput.value.trim(),
+    min: elements.minSizeInput.value.trim(),
+    max: elements.maxSizeInput.value.trim(),
+    excluded: Array.from(state.excludedModels),
+  };
+  try {
+    localStorage.setItem(UI_STATE_KEY, JSON.stringify(payload));
+  } catch (error) {
+    console.warn("Failed to save UI state", error);
+  }
 }
 
 function createMultiPromptTest({ id, name, cases }) {
@@ -385,6 +450,7 @@ function parseParamSize(text) {
 
 function handleFilterChange() {
   applyFilters();
+  saveUiStateToStorage();
   render();
 }
 
@@ -394,6 +460,7 @@ function excludeModel(name) {
   }
   state.excludedModels.add(name);
   applyFilters();
+  saveUiStateToStorage();
   render();
 }
 
@@ -583,6 +650,11 @@ function renderTable() {
         const chip = document.createElement("span");
         chip.className = "score-chip";
         chip.textContent = formatScore(result.score, result.maxScore);
+        if (result.score === result.maxScore) {
+          chip.classList.add("score-chip--max");
+        } else if (result.score === 0) {
+          chip.classList.add("score-chip--zero");
+        }
         scoreWrap.appendChild(chip);
         const totalDuration = getResultDurationNs(result);
         const durationText = formatDurationNs(totalDuration);
