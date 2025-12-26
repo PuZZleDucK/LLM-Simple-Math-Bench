@@ -4,21 +4,27 @@ const RAW_RESULTS_ENDPOINT = "/api/results.csv";
 const CLEAR_RESULTS_ENDPOINT = "/api/clear";
 
 const tests = [
-  createNumericTest({
-    id: "add-17-25",
-    name: "Add 17 + 25",
-    prompt: "Compute: 17 + 25. Respond with the number only.",
-    expected: 42,
-    tolerance: 0,
-    maxScore: 1,
+  createMultiPromptTest({
+    id: "simple-addition",
+    name: "Simple Addition",
+    cases: [
+      { id: "1+1", prompt: "Compute: 1 + 1. Respond only with the answer in digits.", expected: "2" },
+      { id: "3+2", prompt: "Compute: 3 + 2. Respond only with the answer in digits.", expected: "5" },
+      { id: "8+4", prompt: "Compute: 8 + 4. Respond only with the answer in digits.", expected: "12" },
+      { id: "16+32", prompt: "Compute: 16 + 32. Respond only with the answer in digits.", expected: "48" },
+      { id: "19+77", prompt: "Compute: 19 + 77. Respond only with the answer in digits.", expected: "96" },
+    ],
   }),
-  createNumericTest({
-    id: "mul-12-9",
-    name: "Multiply 12 * 9",
-    prompt: "Compute: 12 * 9. Respond with the number only.",
-    expected: 108,
-    tolerance: 0,
-    maxScore: 1,
+  createMultiPromptTest({
+    id: "simple-subtraction",
+    name: "Simple Subtraction",
+    cases: [
+      { id: "2-1", prompt: "Compute: 2 - 1. Respond only with the answer in digits.", expected: "1" },
+      { id: "5-2", prompt: "Compute: 5 - 2. Respond only with the answer in digits.", expected: "3" },
+      { id: "11-3", prompt: "Compute: 11 - 3. Respond only with the answer in digits.", expected: "8" },
+      { id: "67-32", prompt: "Compute: 67 - 32. Respond only with the answer in digits.", expected: "35" },
+      { id: "97-58", prompt: "Compute: 97 - 58. Respond only with the answer in digits.", expected: "39" },
+    ],
   }),
 ];
 
@@ -32,6 +38,7 @@ const state = {
   regexValid: true,
   error: null,
   resultsError: null,
+  excludedModels: new Set(),
 };
 
 const elements = {
@@ -68,6 +75,83 @@ function bindEvents() {
   elements.regexInput.addEventListener("input", handleFilterChange);
   elements.minSizeInput.addEventListener("input", handleFilterChange);
   elements.maxSizeInput.addEventListener("input", handleFilterChange);
+}
+
+function createMultiPromptTest({ id, name, cases }) {
+  const maxScore = cases.length * 2;
+  return {
+    id,
+    name,
+    minScore: 0,
+    maxScore,
+    run: async (modelName) => {
+      const caseResults = [];
+      let totalScore = 0;
+      const statsTotals = createStatsAccumulator();
+
+      for (const [index, testCase] of cases.entries()) {
+        const caseId = testCase.id || `case-${index + 1}`;
+        const prompt = testCase.prompt;
+        const expected = String(testCase.expected);
+        let output = "";
+        let error = "";
+        let stats = {};
+        let caseScore = 0;
+
+        try {
+          const response = await callChat(modelName, prompt);
+          output = response.content.trim();
+          stats = response.stats;
+          addStats(statsTotals, stats);
+          const contains = containsExpectedAnswer(output, expected);
+          const exactOnly = isExactAnswer(output, expected);
+          if (contains) {
+            caseScore += 1;
+          }
+          if (exactOnly) {
+            caseScore += 1;
+          }
+        } catch (err) {
+          error = String(err?.message || err);
+        }
+
+        totalScore += caseScore;
+        caseResults.push({
+          caseId,
+          prompt,
+          expected,
+          score: caseScore,
+          maxScore: 2,
+          output,
+          error,
+          completedAt: new Date().toISOString(),
+          ...stats,
+        });
+      }
+
+      const outputSummary = caseResults
+        .map((caseResult) => {
+          const label = caseResult.caseId || "case";
+          if (caseResult.error) {
+            return `${label}: error: ${caseResult.error}`;
+          }
+          if (caseResult.output) {
+            return `${label}: ${caseResult.output}`;
+          }
+          return `${label}: (no output)`;
+        })
+        .join("\n---\n");
+      const aggregatedStats = finalizeStats(statsTotals);
+      return {
+        score: totalScore,
+        maxScore,
+        output: outputSummary,
+        completedAt: new Date().toISOString(),
+        caseResults,
+        ...aggregatedStats,
+      };
+    },
+  };
 }
 
 function createNumericTest({ id, name, prompt, expected, tolerance, maxScore }) {
@@ -156,6 +240,91 @@ function calculateTokensPerSecond(tokens, durationNs) {
   return tokens / (durationNs / 1e9);
 }
 
+function createStatsAccumulator() {
+  return {
+    promptEvalCount: 0,
+    evalCount: 0,
+    promptEvalDuration: 0,
+    evalDuration: 0,
+    totalDuration: 0,
+    loadDuration: 0,
+    hasPromptEvalCount: false,
+    hasEvalCount: false,
+    hasPromptEvalDuration: false,
+    hasEvalDuration: false,
+    hasTotalDuration: false,
+    hasLoadDuration: false,
+  };
+}
+
+function addStats(accumulator, stats) {
+  if (!stats) {
+    return;
+  }
+  if (Number.isFinite(stats.promptEvalCount)) {
+    accumulator.promptEvalCount += stats.promptEvalCount;
+    accumulator.hasPromptEvalCount = true;
+  }
+  if (Number.isFinite(stats.evalCount)) {
+    accumulator.evalCount += stats.evalCount;
+    accumulator.hasEvalCount = true;
+  }
+  if (Number.isFinite(stats.promptEvalDuration)) {
+    accumulator.promptEvalDuration += stats.promptEvalDuration;
+    accumulator.hasPromptEvalDuration = true;
+  }
+  if (Number.isFinite(stats.evalDuration)) {
+    accumulator.evalDuration += stats.evalDuration;
+    accumulator.hasEvalDuration = true;
+  }
+  if (Number.isFinite(stats.totalDuration)) {
+    accumulator.totalDuration += stats.totalDuration;
+    accumulator.hasTotalDuration = true;
+  }
+  if (Number.isFinite(stats.loadDuration)) {
+    accumulator.loadDuration += stats.loadDuration;
+    accumulator.hasLoadDuration = true;
+  }
+}
+
+function finalizeStats(accumulator) {
+  const totals = {
+    promptEvalCount: accumulator.hasPromptEvalCount
+      ? accumulator.promptEvalCount
+      : null,
+    evalCount: accumulator.hasEvalCount ? accumulator.evalCount : null,
+    promptEvalDuration: accumulator.hasPromptEvalDuration
+      ? accumulator.promptEvalDuration
+      : null,
+    evalDuration: accumulator.hasEvalDuration ? accumulator.evalDuration : null,
+    totalDuration: accumulator.hasTotalDuration ? accumulator.totalDuration : null,
+    loadDuration: accumulator.hasLoadDuration ? accumulator.loadDuration : null,
+  };
+  totals.promptTokensPerSecond = calculateTokensPerSecond(
+    totals.promptEvalCount,
+    totals.promptEvalDuration
+  );
+  totals.evalTokensPerSecond = calculateTokensPerSecond(
+    totals.evalCount,
+    totals.evalDuration
+  );
+  return totals;
+}
+
+function isExactAnswer(text, expected) {
+  return text.trim() === expected;
+}
+
+function containsExpectedAnswer(text, expected) {
+  const escaped = escapeRegExp(expected);
+  const regex = new RegExp(`(?:^|[^0-9])${escaped}(?:[^0-9]|$)`);
+  return regex.test(text);
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 function extractFirstNumber(text) {
   const match = text.match(/-?\d+(?:\.\d+)?/);
   if (!match) {
@@ -215,6 +384,15 @@ function parseParamSize(text) {
 }
 
 function handleFilterChange() {
+  applyFilters();
+  render();
+}
+
+function excludeModel(name) {
+  if (!name) {
+    return;
+  }
+  state.excludedModels.add(name);
   applyFilters();
   render();
 }
@@ -354,9 +532,25 @@ function renderTable() {
   models.forEach((model, index) => {
     const row = document.createElement("tr");
     row.style.animationDelay = `${index * 20}ms`;
+    if (state.excludedModels.has(model.name)) {
+      row.classList.add("row-excluded");
+    }
     const nameCell = document.createElement("td");
     const nameWrap = document.createElement("div");
     nameWrap.className = "model-name";
+    const excludeBtn = document.createElement("button");
+    excludeBtn.type = "button";
+    excludeBtn.className = "exclude-btn";
+    excludeBtn.textContent = "x";
+    excludeBtn.title = state.excludedModels.has(model.name)
+      ? "Excluded from runs"
+      : "Exclude model from runs";
+    excludeBtn.setAttribute("aria-label", `Exclude ${model.name}`);
+    excludeBtn.disabled = state.excludedModels.has(model.name);
+    excludeBtn.addEventListener("click", (event) => {
+      event.stopPropagation();
+      excludeModel(model.name);
+    });
     const nameText = document.createElement("span");
     nameText.textContent = formatModelName(model.name);
     nameText.className = "cell-mono";
@@ -364,7 +558,7 @@ function renderTable() {
     const sizeText = document.createElement("span");
     sizeText.className = "model-size";
     sizeText.textContent = formatModelSize(model.sizeB, model.sizeBytes) || "n/a";
-    nameWrap.append(nameText, sizeText);
+    nameWrap.append(excludeBtn, nameText, sizeText);
     nameCell.appendChild(nameWrap);
     row.appendChild(nameCell);
 
@@ -379,11 +573,30 @@ function renderTable() {
       } else if (result.error) {
         cell.textContent = "error";
         cell.className = "error";
+        const tooltip = formatResultTooltip(result, test);
+        if (tooltip) {
+          cell.title = tooltip;
+        }
       } else if (typeof result.score === "number") {
-        cell.innerHTML = `<span class="score-chip">${formatScore(
-          result.score,
-          result.maxScore
-        )}</span>`;
+        const scoreWrap = document.createElement("div");
+        scoreWrap.className = "score-stack";
+        const chip = document.createElement("span");
+        chip.className = "score-chip";
+        chip.textContent = formatScore(result.score, result.maxScore);
+        scoreWrap.appendChild(chip);
+        const totalDuration = getResultDurationNs(result);
+        const durationText = formatDurationNs(totalDuration);
+        if (durationText) {
+          const time = document.createElement("div");
+          time.className = "time-sub";
+          time.textContent = durationText;
+          scoreWrap.appendChild(time);
+        }
+        const tooltip = formatResultTooltip(result, test);
+        if (tooltip) {
+          scoreWrap.title = tooltip;
+        }
+        cell.appendChild(scoreWrap);
       } else {
         cell.textContent = "pending";
         cell.className = "pending";
@@ -436,6 +649,9 @@ async function runUnrunBenchmarks() {
 
   try {
     for (const model of state.filteredModels) {
+      if (state.excludedModels.has(model.name)) {
+        continue;
+      }
       const modelResults = state.results[model.name] || {};
       for (const test of tests) {
         if (modelResults[test.id]) {
@@ -510,6 +726,73 @@ function formatScore(score, maxScore) {
   return `${score}/${maxScore}`;
 }
 
+function formatResultTooltip(result, test) {
+  if (!result) {
+    return "";
+  }
+  const lines = [];
+  if (result.error) {
+    lines.push(`Error: ${result.error}`);
+  }
+  if (Array.isArray(result.caseResults) && result.caseResults.length > 0) {
+    result.caseResults.forEach((caseResult) => {
+      const label = caseResult.caseId || test?.name || "case";
+      if (caseResult.error) {
+        lines.push(`${label}: error: ${caseResult.error}`);
+      } else if (caseResult.output) {
+        lines.push(`${label}: ${caseResult.output}`);
+      } else {
+        lines.push(`${label}: (no output)`);
+      }
+    });
+  } else if (result.output) {
+    lines.push(result.output.trim());
+  }
+  return lines.join("\n---\n");
+}
+
+function getResultDurationNs(result) {
+  if (!result) {
+    return null;
+  }
+  if (Number.isFinite(result.totalDuration)) {
+    return result.totalDuration;
+  }
+  if (Array.isArray(result.caseResults)) {
+    let sum = 0;
+    let has = false;
+    result.caseResults.forEach((caseResult) => {
+      if (Number.isFinite(caseResult.totalDuration)) {
+        sum += caseResult.totalDuration;
+        has = true;
+      }
+    });
+    return has ? sum : null;
+  }
+  return null;
+}
+
+function formatDurationNs(durationNs) {
+  if (!Number.isFinite(durationNs) || durationNs <= 0) {
+    return null;
+  }
+  const seconds = durationNs / 1e9;
+  if (seconds < 1) {
+    const ms = seconds * 1000;
+    const precision = ms < 100 ? 1 : 0;
+    return `${ms.toFixed(precision)} ms`;
+  }
+  if (seconds < 10) {
+    return `${seconds.toFixed(2)} s`;
+  }
+  if (seconds < 60) {
+    return `${seconds.toFixed(1)} s`;
+  }
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = Math.round(seconds % 60);
+  return `${minutes}m ${remainingSeconds}s`;
+}
+
 function formatModelName(name) {
   const limit = 25;
   if (!name || name.length <= limit) {
@@ -579,27 +862,58 @@ async function loadResults() {
 }
 
 async function persistResult(modelName, test, result) {
-  const payload = {
-    entries: [
-      {
-        timestamp: result.completedAt,
+  const entries = [];
+  const aggregateTimestamp = result.completedAt || new Date().toISOString();
+  entries.push({
+    timestamp: aggregateTimestamp,
+    model: modelName,
+    test_id: test.id,
+    test_name: test.name,
+    case_id: "",
+    case_prompt: "",
+    expected: "",
+    score: result.score ?? "",
+    max_score: result.maxScore ?? test.maxScore,
+    output: result.output ?? "",
+    error: result.error ?? "",
+    prompt_eval_count: result.promptEvalCount ?? "",
+    eval_count: result.evalCount ?? "",
+    prompt_eval_duration: result.promptEvalDuration ?? "",
+    eval_duration: result.evalDuration ?? "",
+    total_duration: result.totalDuration ?? "",
+    load_duration: result.loadDuration ?? "",
+    prompt_tokens_per_second: result.promptTokensPerSecond ?? "",
+    eval_tokens_per_second: result.evalTokensPerSecond ?? "",
+  });
+
+  if (Array.isArray(result.caseResults)) {
+    result.caseResults.forEach((caseResult) => {
+      entries.push({
+        timestamp: caseResult.completedAt || aggregateTimestamp,
         model: modelName,
         test_id: test.id,
         test_name: test.name,
-        score: result.score ?? "",
-        max_score: result.maxScore ?? test.maxScore,
-        output: result.output ?? "",
-        error: result.error ?? "",
-        prompt_eval_count: result.promptEvalCount ?? "",
-        eval_count: result.evalCount ?? "",
-        prompt_eval_duration: result.promptEvalDuration ?? "",
-        eval_duration: result.evalDuration ?? "",
-        total_duration: result.totalDuration ?? "",
-        load_duration: result.loadDuration ?? "",
-        prompt_tokens_per_second: result.promptTokensPerSecond ?? "",
-        eval_tokens_per_second: result.evalTokensPerSecond ?? "",
-      },
-    ],
+        case_id: caseResult.caseId ?? "",
+        case_prompt: caseResult.prompt ?? "",
+        expected: caseResult.expected ?? "",
+        score: caseResult.score ?? "",
+        max_score: caseResult.maxScore ?? 2,
+        output: caseResult.output ?? "",
+        error: caseResult.error ?? "",
+        prompt_eval_count: caseResult.promptEvalCount ?? "",
+        eval_count: caseResult.evalCount ?? "",
+        prompt_eval_duration: caseResult.promptEvalDuration ?? "",
+        eval_duration: caseResult.evalDuration ?? "",
+        total_duration: caseResult.totalDuration ?? "",
+        load_duration: caseResult.loadDuration ?? "",
+        prompt_tokens_per_second: caseResult.promptTokensPerSecond ?? "",
+        eval_tokens_per_second: caseResult.evalTokensPerSecond ?? "",
+      });
+    });
+  }
+
+  const payload = {
+    entries,
   };
 
   try {

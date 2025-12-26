@@ -17,6 +17,9 @@ HEADERS = [
   "model",
   "test_id",
   "test_name",
+  "case_id",
+  "case_prompt",
+  "expected",
   "score",
   "max_score",
   "output",
@@ -89,7 +92,9 @@ def latest_results
   CSV.foreach(RESULTS_FILE, headers: true) do |row|
     model = row["model"].to_s
     test_id = row["test_id"].to_s
+    case_id = row["case_id"].to_s
     next if model.empty? || test_id.empty?
+    next unless case_id.empty?
 
     timestamp = parse_time(row["timestamp"])
     if timestamp && (!last_updated || timestamp > last_updated)

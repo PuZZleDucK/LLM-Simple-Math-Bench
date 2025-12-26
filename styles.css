@@ -296,6 +296,14 @@ tbody tr:hover {
   background: rgba(53, 192, 182, 0.12);
 }
 
+tbody tr.row-excluded {
+  opacity: 0.5;
+}
+
+tbody tr.row-excluded:hover {
+  background: transparent;
+}
+
 .cell-mono {
   font-family: var(--mono);
 }
@@ -309,6 +317,19 @@ tbody tr:hover {
   background: rgba(53, 192, 182, 0.2);
   font-family: var(--mono);
   font-size: 0.85rem;
+}
+
+.score-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.time-sub {
+  font-size: 0.72rem;
+  color: var(--muted);
+  font-family: var(--mono);
 }
 
 .pending {
@@ -325,6 +346,23 @@ tbody tr:hover {
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.exclude-btn {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  border-radius: 999px;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  font-size: 0.9rem;
+  line-height: 1;
+}
+
+.exclude-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 .model-size {
