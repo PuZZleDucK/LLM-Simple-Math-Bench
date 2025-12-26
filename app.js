@@ -49,6 +49,142 @@ const tests = [
       { id: "100/20", prompt: "Compute: 100 / 20. Respond only with the answer in digits.", expected: "5" },
     ],
   }),
+  createMultiPromptTest({
+    id: "compound-addition",
+    name: "Compound Addition",
+    cases: [
+      { id: "1+2+3", prompt: "Compute: 1 + 2 + 3. Respond only with the answer in digits.", expected: "6" },
+      { id: "17+31+6", prompt: "Compute: 17 + 31 + 6. Respond only with the answer in digits.", expected: "54" },
+      { id: "5+8+3+9", prompt: "Compute: 5 + 8 + 3 + 9. Respond only with the answer in digits.", expected: "25" },
+      { id: "104+305+694", prompt: "Compute: 104 + 305 + 694. Respond only with the answer in digits.", expected: "1103" },
+      { id: "638+837+921", prompt: "Compute: 638 + 837 + 921. Respond only with the answer in digits.", expected: "2396" },
+    ],
+  }),
+  createMultiPromptTest({
+    id: "compound-subtraction",
+    name: "Compound Subtraction",
+    cases: [
+      { id: "3-2-1", prompt: "Compute: 3 - 2 - 1. Respond only with the answer in digits.", expected: "0" },
+      { id: "3-(2-1)", prompt: "Compute: 3 - (2 - 1). Respond only with the answer in digits.", expected: "2" },
+      { id: "10-5-7", prompt: "Compute: 10 - 5 - 7. Respond only with the answer in digits.", expected: "-2" },
+      { id: "100-(50-7)", prompt: "Compute: 100 - (50 - 7). Respond only with the answer in digits.", expected: "57" },
+      { id: "30-50-5", prompt: "Compute: 30 - 50 - 5. Respond only with the answer in digits.", expected: "-25" },
+    ],
+  }),
+  createMultiPromptTest({
+    id: "compound-multiplication",
+    name: "Compound Multiplication",
+    cases: [
+      { id: "5*5*5", prompt: "Compute: 5 * 5 * 5. Respond only with the answer in digits.", expected: "125" },
+      { id: "3*9*7", prompt: "Compute: 3 * 9 * 7. Respond only with the answer in digits.", expected: "189" },
+      { id: "23*7*3", prompt: "Compute: 23 * 7 * 3. Respond only with the answer in digits.", expected: "483" },
+      { id: "53*12*2", prompt: "Compute: 53 * 12 * 2. Respond only with the answer in digits.", expected: "1272" },
+      { id: "32*41*13", prompt: "Compute: 32 * 41 * 13. Respond only with the answer in digits.", expected: "17056" },
+    ],
+  }),
+  createMultiPromptTest({
+    id: "compound-division",
+    name: "Compound Division",
+    cases: [
+      {
+        id: "9/3/3",
+        prompt: "Compute: 9 / 3 / 3. Respond only with the answer in digits.",
+        expected: "1",
+        matchMode: "numeric",
+      },
+      {
+        id: "12/(8/2)",
+        prompt: "Compute: 12 / (8 / 2). Respond only with the answer in digits.",
+        expected: "3",
+        matchMode: "numeric",
+      },
+      {
+        id: "25/5/2",
+        prompt: "Compute: 25 / 5 / 2. Respond only with the answer in digits.",
+        expected: "2.5",
+        matchMode: "numeric",
+      },
+      {
+        id: "100/5/2",
+        prompt: "Compute: 100 / 5 / 2. Respond only with the answer in digits.",
+        expected: "10",
+        matchMode: "numeric",
+      },
+      {
+        id: "900/25/9",
+        prompt: "Compute: 900 / 25 / 9. Respond only with the answer in digits.",
+        expected: "4",
+        matchMode: "numeric",
+      },
+    ],
+  }),
+  createMultiPromptTest({
+    id: "bmdas-assisted",
+    name: "BMDAS Assisted",
+    cases: [
+      {
+        id: "6+2*(5-3)",
+        prompt:
+          "Compute: 6 + 2 * (5 - 3). Use BMDAS (brackets, multiply, divide, add, subtract). Respond only with the answer in digits.",
+        expected: "10",
+      },
+      {
+        id: "(18/3)*(4+1)",
+        prompt:
+          "Compute: (18 / 3) * (4 + 1). Use BMDAS (brackets, multiply, divide, add, subtract). Respond only with the answer in digits.",
+        expected: "30",
+      },
+      {
+        id: "40-6*(3+2)",
+        prompt:
+          "Compute: 40 - 6 * (3 + 2). Use BMDAS (brackets, multiply, divide, add, subtract). Respond only with the answer in digits.",
+        expected: "10",
+      },
+      {
+        id: "(100-25)/5+7",
+        prompt:
+          "Compute: (100 - 25) / 5 + 7. Use BMDAS (brackets, multiply, divide, add, subtract). Respond only with the answer in digits.",
+        expected: "22",
+      },
+      {
+        id: "50/(5+5)*6-4",
+        prompt:
+          "Compute: 50 / (5 + 5) * 6 - 4. Use BMDAS (brackets, multiply, divide, add, subtract). Respond only with the answer in digits.",
+        expected: "26",
+      },
+    ],
+  }),
+  createMultiPromptTest({
+    id: "bmdas-mixed",
+    name: "BMDAS Mixed",
+    cases: [
+      {
+        id: "6+2*(5-3)",
+        prompt: "Compute: 6 + 2 * (5 - 3). Respond only with the answer in digits.",
+        expected: "10",
+      },
+      {
+        id: "(18/3)*(4+1)",
+        prompt: "Compute: (18 / 3) * (4 + 1). Respond only with the answer in digits.",
+        expected: "30",
+      },
+      {
+        id: "40-6*(3+2)",
+        prompt: "Compute: 40 - 6 * (3 + 2). Respond only with the answer in digits.",
+        expected: "10",
+      },
+      {
+        id: "(100-25)/5+7",
+        prompt: "Compute: (100 - 25) / 5 + 7. Respond only with the answer in digits.",
+        expected: "22",
+      },
+      {
+        id: "50/(5+5)*6-4",
+        prompt: "Compute: 50 / (5 + 5) * 6 - 4. Respond only with the answer in digits.",
+        expected: "26",
+      },
+    ],
+  }),
 ];
 
 const state = {
@@ -158,6 +294,7 @@ function createMultiPromptTest({ id, name, cases }) {
         const caseId = testCase.id || `case-${index + 1}`;
         const prompt = testCase.prompt;
         const expected = String(testCase.expected);
+        const matchMode = testCase.matchMode || "literal";
         let output = "";
         let error = "";
         let stats = {};
@@ -168,8 +305,7 @@ function createMultiPromptTest({ id, name, cases }) {
           output = response.content.trim();
           stats = response.stats;
           addStats(statsTotals, stats);
-          const contains = containsExpectedAnswer(output, expected);
-          const exactOnly = isExactAnswer(output, expected);
+          const { contains, exactOnly } = scoreAnswer(output, expected, matchMode);
           if (contains) {
             caseScore += 1;
           }
@@ -303,6 +439,81 @@ function calculateTokensPerSecond(tokens, durationNs) {
     return null;
   }
   return tokens / (durationNs / 1e9);
+}
+
+function scoreAnswer(output, expected, matchMode) {
+  if (!output) {
+    return { contains: false, exactOnly: false };
+  }
+  if (matchMode === "numeric") {
+    return scoreNumericAnswer(output, expected);
+  }
+  return {
+    contains: containsExpectedAnswer(output, expected),
+    exactOnly: isExactAnswer(output, expected),
+  };
+}
+
+function scoreNumericAnswer(output, expected) {
+  const expectedValue = parseNumericValue(expected);
+  if (expectedValue === null) {
+    return { contains: false, exactOnly: false };
+  }
+  const normalized = normalizeFractionSpacing(output);
+  const tokens = extractNumericTokens(normalized);
+  const contains = tokens.some((value) => numericEqual(value, expectedValue));
+  const exactTokenValue = parseNumericToken(normalized.trim());
+  const exactOnly =
+    exactTokenValue !== null && numericEqual(exactTokenValue, expectedValue);
+  return { contains, exactOnly };
+}
+
+function parseNumericToken(text) {
+  const normalized = normalizeFractionSpacing(text.trim());
+  if (!/^-?(?:\d+\/\d+|\d*\.\d+|\d+)$/.test(normalized)) {
+    return null;
+  }
+  return parseNumericValue(normalized);
+}
+
+function parseNumericValue(token) {
+  const normalized = normalizeFractionSpacing(String(token).trim());
+  if (!normalized) {
+    return null;
+  }
+  if (normalized.includes("/")) {
+    const [rawNumerator, rawDenominator] = normalized.split("/");
+    const numerator = Number(rawNumerator);
+    const denominator = Number(rawDenominator);
+    if (!Number.isFinite(numerator) || !Number.isFinite(denominator) || denominator === 0) {
+      return null;
+    }
+    return numerator / denominator;
+  }
+  const value = Number(normalized);
+  return Number.isFinite(value) ? value : null;
+}
+
+function extractNumericTokens(text) {
+  const normalized = normalizeFractionSpacing(text);
+  const regex = /-?(?:\d+\/\d+|\d*\.\d+|\d+)/g;
+  const tokens = [];
+  const matches = normalized.match(regex) || [];
+  matches.forEach((match) => {
+    const value = parseNumericValue(match);
+    if (value !== null) {
+      tokens.push(value);
+    }
+  });
+  return tokens;
+}
+
+function numericEqual(a, b) {
+  return Math.abs(a - b) <= 1e-9;
+}
+
+function normalizeFractionSpacing(text) {
+  return String(text).replace(/(\d)\s*\/\s*(\d)/g, "$1/$2");
 }
 
 function createStatsAccumulator() {
