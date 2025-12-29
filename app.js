@@ -105,6 +105,37 @@ const tests = [
     ],
   }),
   createMultiPromptTest({
+    id: "advanced-multiplication",
+    name: "Advanced Multiplication",
+    cases: [
+      {
+        id: "2*3*4*5*6",
+        prompt: "Compute: 2 * 3 * 4 * 5 * 6. Respond only with the answer in digits.",
+        expected: "720",
+      },
+      {
+        id: "7*8*9*3*2",
+        prompt: "Compute: 7 * 8 * 9 * 3 * 2. Respond only with the answer in digits.",
+        expected: "3024",
+      },
+      {
+        id: "12*15*7*3*2*5",
+        prompt: "Compute: 12 * 15 * 7 * 3 * 2 * 5. Respond only with the answer in digits.",
+        expected: "37800",
+      },
+      {
+        id: "25*16*7*9*3*2",
+        prompt: "Compute: 25 * 16 * 7 * 9 * 3 * 2. Respond only with the answer in digits.",
+        expected: "151200",
+      },
+      {
+        id: "101*37*12*5*8*3",
+        prompt: "Compute: 101 * 37 * 12 * 5 * 8 * 3. Respond only with the answer in digits.",
+        expected: "5381280",
+      },
+    ],
+  }),
+  createMultiPromptTest({
     id: "simple-division",
     name: "Simple Division",
     cases: [
