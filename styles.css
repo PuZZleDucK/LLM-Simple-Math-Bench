@@ -373,6 +373,7 @@ input.invalid {
   display: block;
   border-radius: 14px;
   background: rgba(11, 14, 19, 0.25);
+  min-height: 240px;
 }
 
 .table-header {

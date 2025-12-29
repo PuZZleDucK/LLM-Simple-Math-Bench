@@ -125,8 +125,9 @@ function renderProgressChart() {
     return;
   }
 
-  const width = canvas.clientWidth || 0;
-  const height = Math.max(220, Math.min(360, Math.round((canvas.clientWidth || 600) * 0.25)));
+  const rect = canvas.getBoundingClientRect();
+  const width = rect.width || canvas.clientWidth || 0;
+  const height = Math.max(240, Math.min(380, Math.round(((rect.width || canvas.clientWidth || 720) * 0.25))));
   const dpr = window.devicePixelRatio || 1;
   canvas.width = Math.round(width * dpr);
   canvas.height = Math.round(height * dpr);
@@ -135,7 +136,13 @@ function renderProgressChart() {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, width, height);
 
-  if (state.error || state.tests.length === 0 || state.modelOrder.length === 0 || width <= 10) {
+  if (width <= 10) {
+    // Layout can report 0 width briefly; retry next frame.
+    requestAnimationFrame(() => renderProgressChart());
+    return;
+  }
+
+  if (state.error || state.tests.length === 0 || state.modelOrder.length === 0) {
     drawChartMessage(ctx, width, height, state.error ? "Chart unavailable (CSV missing)." : "No data yet.");
     return;
   }
@@ -241,7 +248,7 @@ function drawSeries(ctx, series, { idx, color, xForIndex, yForScore }) {
   ctx.lineWidth = emphasized ? 2.2 : 1.5;
   ctx.strokeStyle = color;
   ctx.fillStyle = color;
-  ctx.globalAlpha = emphasized ? 0.55 : 0.18;
+  ctx.globalAlpha = emphasized ? 0.8 : 0.35;
 
   // Draw segments (stop at nulls).
   ctx.beginPath();
