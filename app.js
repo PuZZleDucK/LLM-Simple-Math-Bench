@@ -63,6 +63,37 @@ const tests = [
     ],
   }),
   createMultiPromptTest({
+    id: "advanced-subtraction",
+    name: "Advanced Subtraction",
+    cases: [
+      {
+        id: "100-7-5-9-3",
+        prompt: "Compute: 100 - 7 - 5 - 9 - 3. Respond only with the answer in digits.",
+        expected: "76",
+      },
+      {
+        id: "250-58-17-26-39",
+        prompt: "Compute: 250 - 58 - 17 - 26 - 39. Respond only with the answer in digits.",
+        expected: "110",
+      },
+      {
+        id: "1000-104-305-88-17-56",
+        prompt: "Compute: 1000 - 104 - 305 - 88 - 17 - 56. Respond only with the answer in digits.",
+        expected: "430",
+      },
+      {
+        id: "5000-638-837-921-145-302",
+        prompt: "Compute: 5000 - 638 - 837 - 921 - 145 - 302. Respond only with the answer in digits.",
+        expected: "2157",
+      },
+      {
+        id: "20000-1205-9876-4321-555-678",
+        prompt: "Compute: 20000 - 1205 - 9876 - 4321 - 555 - 678. Respond only with the answer in digits.",
+        expected: "3365",
+      },
+    ],
+  }),
+  createMultiPromptTest({
     id: "simple-multiplication",
     name: "Simple Multiplication",
     cases: [
