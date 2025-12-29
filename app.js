@@ -147,6 +147,42 @@ const tests = [
     ],
   }),
   createMultiPromptTest({
+    id: "advanced-division",
+    name: "Advanced Division",
+    cases: [
+      {
+        id: "7200/3/5/6/8",
+        prompt: "Compute: 7200 / 3 / 5 / 6 / 8. Respond only with the answer in digits.",
+        expected: "10",
+        matchMode: "numeric",
+      },
+      {
+        id: "2048/2/4/8/8",
+        prompt: "Compute: 2048 / 2 / 4 / 8 / 8. Respond only with the answer in digits.",
+        expected: "4",
+        matchMode: "numeric",
+      },
+      {
+        id: "1000/8/5/2/2",
+        prompt: "Compute: 1000 / 8 / 5 / 2 / 2. Respond only with the answer in digits.",
+        expected: "6.25",
+        matchMode: "numeric",
+      },
+      {
+        id: "64000/5/4/8/2/5",
+        prompt: "Compute: 64000 / 5 / 4 / 8 / 2 / 5. Respond only with the answer in digits.",
+        expected: "40",
+        matchMode: "numeric",
+      },
+      {
+        id: "3125/5/5/5/5/2",
+        prompt: "Compute: 3125 / 5 / 5 / 5 / 5 / 2. Respond only with the answer in digits.",
+        expected: "2.5",
+        matchMode: "numeric",
+      },
+    ],
+  }),
+  createMultiPromptTest({
     id: "compound-addition",
     name: "Compound Addition",
     cases: [
