@@ -16,6 +16,7 @@ const elements = {
   maxScore: document.getElementById("maxScore"),
   modelCount: document.getElementById("modelCount"),
   lastUpdated: document.getElementById("lastUpdated"),
+  progressChart: document.getElementById("progressChart"),
   resultsTable: document.getElementById("resultsTable"),
   tableHint: document.getElementById("tableHint"),
 };
@@ -100,7 +101,206 @@ function buildResults() {
 function render() {
   updateSummary();
   updateStatus();
+  renderProgressChart();
   renderTable();
+}
+
+let chartResizeListenerBound = false;
+
+function renderProgressChart() {
+  const canvas = elements.progressChart;
+  if (!canvas) {
+    return;
+  }
+
+  if (!chartResizeListenerBound) {
+    chartResizeListenerBound = true;
+    window.addEventListener("resize", () => {
+      renderProgressChart();
+    });
+  }
+
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    return;
+  }
+
+  const width = canvas.clientWidth || 0;
+  const height = Math.max(220, Math.min(360, Math.round((canvas.clientWidth || 600) * 0.25)));
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = Math.round(width * dpr);
+  canvas.height = Math.round(height * dpr);
+  canvas.style.height = `${height}px`;
+
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, width, height);
+
+  if (state.error || state.tests.length === 0 || state.modelOrder.length === 0 || width <= 10) {
+    drawChartMessage(ctx, width, height, state.error ? "Chart unavailable (CSV missing)." : "No data yet.");
+    return;
+  }
+
+  const maxTotal = state.tests.reduce((sum, test) => sum + test.maxScore, 0);
+  if (maxTotal <= 0) {
+    drawChartMessage(ctx, width, height, "No score range available.");
+    return;
+  }
+
+  const padding = { left: 44, right: 14, top: 12, bottom: 26 };
+  const plotW = Math.max(1, width - padding.left - padding.right);
+  const plotH = Math.max(1, height - padding.top - padding.bottom);
+  const testCount = state.tests.length;
+
+  const xForIndex = (i) => {
+    if (testCount <= 1) {
+      return padding.left + plotW / 2;
+    }
+    return padding.left + (i / (testCount - 1)) * plotW;
+  };
+  const yForScore = (score) => {
+    const clamped = Math.max(0, Math.min(maxTotal, score));
+    return padding.top + (1 - clamped / maxTotal) * plotH;
+  };
+
+  drawChartGrid(ctx, { width, height, padding, plotW, plotH, testCount, maxTotal, xForIndex, yForScore });
+
+  const modelsByFinal = [...state.modelOrder].sort((a, b) => {
+    const ta = calculateTotalScore(a);
+    const tb = calculateTotalScore(b);
+    if (ta === tb) {
+      return a.localeCompare(b);
+    }
+    return tb - ta;
+  });
+
+  modelsByFinal.forEach((modelName, idx) => {
+    const series = buildCumulativeSeries(modelName);
+    if (!series) {
+      return;
+    }
+    const color = colorForModel(modelName);
+    drawSeries(ctx, series, { idx, color, xForIndex, yForScore });
+  });
+}
+
+function drawChartMessage(ctx, width, height, message) {
+  ctx.save();
+  ctx.fillStyle = "rgba(164, 169, 183, 0.85)";
+  ctx.font = "12px system-ui, -apple-system, Segoe UI, Roboto, sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(message, width / 2, height / 2);
+  ctx.restore();
+}
+
+function drawChartGrid(ctx, { width, height, padding, plotW, plotH, testCount, maxTotal, xForIndex, yForScore }) {
+  ctx.save();
+  ctx.strokeStyle = "rgba(38, 45, 58, 1)";
+  ctx.lineWidth = 1;
+
+  // Outer bounds
+  ctx.strokeRect(padding.left, padding.top, plotW, plotH);
+
+  // Horizontal grid + labels
+  const steps = 4;
+  ctx.fillStyle = "rgba(164, 169, 183, 0.85)";
+  ctx.font = "11px var(--mono, ui-monospace)";
+  ctx.textAlign = "right";
+  ctx.textBaseline = "middle";
+
+  for (let i = 0; i <= steps; i += 1) {
+    const score = (i / steps) * maxTotal;
+    const y = yForScore(score);
+    ctx.beginPath();
+    ctx.moveTo(padding.left, y);
+    ctx.lineTo(padding.left + plotW, y);
+    ctx.stroke();
+    ctx.fillText(String(Math.round(score)), padding.left - 6, y);
+  }
+
+  // Vertical grid (tests)
+  ctx.strokeStyle = "rgba(38, 45, 58, 0.6)";
+  for (let i = 0; i < testCount; i += 1) {
+    const x = xForIndex(i);
+    ctx.beginPath();
+    ctx.moveTo(x, padding.top);
+    ctx.lineTo(x, padding.top + plotH);
+    ctx.stroke();
+  }
+
+  // x-axis hint
+  ctx.textAlign = "left";
+  ctx.textBaseline = "top";
+  ctx.fillText("tests →", padding.left, padding.top + plotH + 8);
+  ctx.restore();
+}
+
+function drawSeries(ctx, series, { idx, color, xForIndex, yForScore }) {
+  ctx.save();
+  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = color;
+  ctx.globalAlpha = 0.18;
+  if (idx < 5) {
+    ctx.globalAlpha = 0.55;
+    ctx.lineWidth = 2.2;
+  }
+  ctx.beginPath();
+  series.forEach((score, i) => {
+    const x = xForIndex(i);
+    const y = yForScore(score);
+    if (i === 0) {
+      ctx.moveTo(x, y);
+    } else {
+      ctx.lineTo(x, y);
+    }
+  });
+  ctx.stroke();
+  ctx.restore();
+}
+
+function buildCumulativeSeries(modelName) {
+  const modelResults = state.results[modelName] || {};
+  if (state.tests.length === 0) {
+    return null;
+  }
+  const series = [];
+  let running = 0;
+  state.tests.forEach((test) => {
+    const row = modelResults[test.id];
+    const score = row ? toNumber(row.score) : null;
+    if (Number.isFinite(score)) {
+      running += score;
+    }
+    series.push(running);
+  });
+  return series;
+}
+
+function calculateTotalScore(modelName) {
+  const modelResults = state.results[modelName] || {};
+  let total = 0;
+  state.tests.forEach((test) => {
+    const row = modelResults[test.id];
+    const score = row ? toNumber(row.score) : null;
+    if (Number.isFinite(score)) {
+      total += score;
+    }
+  });
+  return total;
+}
+
+function colorForModel(name) {
+  const hash = hashString(name);
+  const hue = hash % 360;
+  return `hsl(${hue} 70% 62% / 1)`;
+}
+
+function hashString(text) {
+  let hash = 0;
+  for (let i = 0; i < text.length; i += 1) {
+    hash = (hash * 31 + text.charCodeAt(i)) >>> 0;
+  }
+  return hash;
 }
 
 function updateSummary() {

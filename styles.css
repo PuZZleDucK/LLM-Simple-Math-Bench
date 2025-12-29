@@ -353,6 +353,28 @@ input.invalid {
   animation: riseIn 0.7s ease-out;
 }
 
+.chart-card {
+  background: var(--panel);
+  border-radius: var(--radius);
+  padding: 20px;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  animation: riseIn 0.65s ease-out;
+  margin-bottom: 18px;
+}
+
+.chart-wrap {
+  margin-top: 10px;
+  width: 100%;
+}
+
+.chart-canvas {
+  width: 100%;
+  display: block;
+  border-radius: 14px;
+  background: rgba(11, 14, 19, 0.25);
+}
+
 .table-header {
   display: flex;
   justify-content: space-between;
@@ -562,6 +584,10 @@ tbody tr.row-excluded:hover {
 
 @media (max-width: 720px) {
   .table-card {
+    padding: 16px;
+  }
+
+  .chart-card {
     padding: 16px;
   }
 
