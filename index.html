@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Ollama Benchmarks</title>
+    <title>Ollama Benchmarks - Results</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -19,51 +19,14 @@
         <div class="header-top">
           <div class="title-block">
             <p class="kicker">Ollama Benchmarks</p>
-            <h1>Math Model Performance Dashboard</h1>
+            <h1>Published Results</h1>
             <p class="subtitle">
-              Run a growing suite of tests across selected models and compare
-              results side by side.
+              Latest benchmark totals pulled from the published CSV feed.
             </p>
           </div>
-          <div class="status-pill" id="statusPill">Idle</div>
+          <div class="status-pill" id="statusPill">Loading</div>
         </div>
         <div class="header-grid">
-          <section class="card" aria-labelledby="controls-title">
-            <div class="card-title" id="controls-title">Controls</div>
-            <div class="button-row">
-              <button id="runBtn" class="primary">Run unrun benchmarks</button>
-              <button id="clearBtn" class="ghost">Clear results</button>
-              <button id="exportBtn" class="ghost">Export CSV</button>
-            </div>
-            <div class="hint" id="runHint">
-              Runs missing tests for the currently selected models.
-            </div>
-          </section>
-          <section class="card" aria-labelledby="settings-title">
-            <div class="card-title" id="settings-title">Settings</div>
-            <div class="field">
-              <label for="regexInput">Model name regex</label>
-              <input
-                id="regexInput"
-                type="text"
-                placeholder=".*"
-                spellcheck="false"
-              />
-            </div>
-            <div class="field-row">
-              <div class="field">
-                <label for="minSizeInput">Min size (B)</label>
-                <input id="minSizeInput" type="number" min="0" step="0.1" />
-              </div>
-              <div class="field">
-                <label for="maxSizeInput">Max size (B)</label>
-                <input id="maxSizeInput" type="number" min="0" step="0.1" />
-              </div>
-            </div>
-            <div class="hint" id="regexHint">
-              Filters use parameter size when available.
-            </div>
-          </section>
           <section class="card" aria-labelledby="summary-title">
             <div class="card-title" id="summary-title">Summary</div>
             <div class="summary-grid">
@@ -72,15 +35,21 @@
                 <div class="summary-value" id="totalTests">0</div>
               </div>
               <div>
-                <div class="summary-label">Min total score</div>
-                <div class="summary-value" id="minScore">0</div>
-              </div>
-              <div>
                 <div class="summary-label">Max total score</div>
                 <div class="summary-value" id="maxScore">0</div>
               </div>
+              <div>
+                <div class="summary-label">Models</div>
+                <div class="summary-value" id="modelCount">0</div>
+              </div>
             </div>
-            <div class="hint">Average uses completed tests only.</div>
+            <div class="hint" id="lastUpdated"></div>
+          </section>
+          <section class="card" aria-labelledby="links-title">
+            <div class="card-title" id="links-title">Actions</div>
+            <a class="link-pill" href="run.html">Run Benchmarks</a>
+            <a class="link-pill" href="data/results.csv" download>Download CSV</a>
+            <div class="hint">Ensure `data/results.csv` is published.</div>
           </section>
         </div>
       </header>
@@ -89,9 +58,8 @@
           <div class="table-header">
             <div>
               <h2>Model Results</h2>
-              <p class="subtitle" id="modelCount">0 models selected</p>
+              <p class="subtitle" id="tableHint">Showing aggregate results.</p>
             </div>
-            <div class="meta" id="lastUpdated"></div>
           </div>
           <div class="table-wrap">
             <table id="resultsTable">
@@ -102,6 +70,6 @@
         </section>
       </main>
     </div>
-    <script src="app.js"></script>
+    <script src="results.js"></script>
   </body>
 </html>

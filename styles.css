@@ -358,6 +358,24 @@ tbody tr.row-excluded:hover {
   flex-wrap: wrap;
 }
 
+.link-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--ink);
+  text-decoration: none;
+  font-weight: 600;
+  transition: transform 0.2s ease, border 0.2s ease, box-shadow 0.2s ease;
+}
+
+.link-pill:hover {
+  border-color: var(--accent-2);
+  transform: translateY(-1px);
+}
+
 .exclude-btn {
   border: 1px solid var(--border);
   background: transparent;

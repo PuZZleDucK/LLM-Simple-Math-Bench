@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Ollama Benchmarks</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Space+Grotesk:wght@400;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="bg-glow"></div>
+    <div class="page">
+      <header class="site-header">
+        <div class="header-top">
+          <div class="title-block">
+            <p class="kicker">Ollama Benchmarks</p>
+            <h1>Math Model Performance Dashboard</h1>
+            <p class="subtitle">
+              Run a growing suite of tests across selected models and compare
+              results side by side.
+            </p>
+          </div>
+          <div class="status-pill" id="statusPill">Idle</div>
+        </div>
+        <div class="header-grid">
+          <section class="card" aria-labelledby="controls-title">
+            <div class="card-title" id="controls-title">Controls</div>
+            <div class="button-row">
+              <button id="runBtn" class="primary">Run unrun benchmarks</button>
+              <button id="clearBtn" class="ghost">Clear results</button>
+              <button id="exportBtn" class="ghost">Export CSV</button>
+            </div>
+            <div class="hint" id="runHint">
+              Runs missing tests for the currently selected models.
+            </div>
+          </section>
+          <section class="card" aria-labelledby="settings-title">
+            <div class="card-title" id="settings-title">Settings</div>
+            <div class="field">
+              <label for="regexInput">Model name regex</label>
+              <input
+                id="regexInput"
+                type="text"
+                placeholder=".*"
+                spellcheck="false"
+              />
+            </div>
+            <div class="field-row">
+              <div class="field">
+                <label for="minSizeInput">Min size (B)</label>
+                <input id="minSizeInput" type="number" min="0" step="0.1" />
+              </div>
+              <div class="field">
+                <label for="maxSizeInput">Max size (B)</label>
+                <input id="maxSizeInput" type="number" min="0" step="0.1" />
+              </div>
+            </div>
+            <div class="hint" id="regexHint">
+              Filters use parameter size when available.
+            </div>
+          </section>
+          <section class="card" aria-labelledby="summary-title">
+            <div class="card-title" id="summary-title">Summary</div>
+            <div class="summary-grid">
+              <div>
+                <div class="summary-label">Total tests</div>
+                <div class="summary-value" id="totalTests">0</div>
+              </div>
+              <div>
+                <div class="summary-label">Min total score</div>
+                <div class="summary-value" id="minScore">0</div>
+              </div>
+              <div>
+                <div class="summary-label">Max total score</div>
+                <div class="summary-value" id="maxScore">0</div>
+              </div>
+            </div>
+            <div class="hint">Average uses completed tests only.</div>
+          </section>
+        </div>
+      </header>
+      <main class="main">
+        <section class="table-card">
+          <div class="table-header">
+            <div>
+              <h2>Model Results</h2>
+              <p class="subtitle" id="modelCount">0 models selected</p>
+            </div>
+            <div class="meta" id="lastUpdated"></div>
+          </div>
+          <div class="table-wrap">
+            <table id="resultsTable">
+              <thead></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </section>
+      </main>
+    </div>
+    <script src="app.js"></script>
+  </body>
+</html>
