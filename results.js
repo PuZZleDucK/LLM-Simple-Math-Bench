@@ -5,6 +5,8 @@ const state = {
   tests: [],
   results: {},
   modelOrder: [],
+  modelMeta: {},
+  modelColors: {},
   status: "Loading",
   lastUpdated: null,
   error: null,
@@ -54,6 +56,7 @@ function buildResults() {
   const tests = new Map();
   const results = {};
   const modelSet = new Set();
+  const modelMeta = {};
   let lastUpdated = null;
 
   state.rows.forEach((row) => {
@@ -69,6 +72,15 @@ function buildResults() {
     }
 
     modelSet.add(model);
+    modelMeta[model] ||= {};
+    const sizeBytes = toNumber(row.model_size_bytes);
+    const sizeB = toNumber(row.model_param_b);
+    if (Number.isFinite(sizeBytes)) {
+      modelMeta[model].sizeBytes = sizeBytes;
+    }
+    if (Number.isFinite(sizeB)) {
+      modelMeta[model].sizeB = sizeB;
+    }
 
     if (!tests.has(testId)) {
       tests.set(testId, {
@@ -95,14 +107,76 @@ function buildResults() {
   state.tests = Array.from(tests.values()).sort((a, b) => a.order - b.order);
   state.results = results;
   state.modelOrder = Array.from(modelSet).sort();
+  state.modelMeta = modelMeta;
   state.lastUpdated = lastUpdated;
 }
 
 function render() {
   updateSummary();
   updateStatus();
+  state.modelColors = buildModelColorMap();
   renderProgressChart();
   renderTable();
+}
+
+function buildModelColorMap() {
+  const models = [...state.modelOrder];
+  const meta = state.modelMeta || {};
+  const entries = models.map((name) => {
+    const sizeBytes = meta?.[name]?.sizeBytes;
+    const sizeB = meta?.[name]?.sizeB;
+    return {
+      name,
+      size: Number.isFinite(sizeBytes)
+        ? sizeBytes
+        : Number.isFinite(sizeB)
+          ? sizeB
+          : null,
+    };
+  });
+
+  entries.sort((a, b) => {
+    if (a.size === null && b.size === null) {
+      return a.name.localeCompare(b.name);
+    }
+    if (a.size === null) {
+      return 1;
+    }
+    if (b.size === null) {
+      return -1;
+    }
+    return a.size - b.size;
+  });
+
+  const n = entries.length;
+  const colors = {};
+  entries.forEach((entry, idx) => {
+    const t = n <= 1 ? 0 : idx / (n - 1);
+    colors[entry.name] = gradientModelColor(t);
+  });
+  return colors;
+}
+
+function gradientModelColor(t) {
+  const clamped = Math.max(0, Math.min(1, t));
+  // Dark blue -> purple -> red as sizes grow.
+  const blue = { h: 215, s: 78, l: 38 };
+  const purple = { h: 285, s: 72, l: 50 };
+  const red = { h: 10, s: 80, l: 52 };
+  if (clamped < 0.55) {
+    const u = clamped / 0.55;
+    return hslLerp(blue, purple, u);
+  }
+  const u = (clamped - 0.55) / 0.45;
+  return hslLerp(purple, red, u);
+}
+
+function hslLerp(a, b, t) {
+  const lerp = (x, y) => x + (y - x) * t;
+  const h = lerp(a.h, b.h);
+  const s = lerp(a.s, b.s);
+  const l = lerp(a.l, b.l);
+  return `hsl(${h.toFixed(1)} ${s.toFixed(1)}% ${l.toFixed(1)}% / 1)`;
 }
 
 let chartResizeListenerBound = false;
@@ -172,19 +246,31 @@ function renderProgressChart() {
   const plotW = Math.max(1, width - padding.left - padding.right);
   const plotH = Math.max(1, height - padding.top - padding.bottom);
   const testCount = state.tests.length;
+  const pointCount = testCount + 1;
 
   const xForIndex = (i) => {
-    if (testCount <= 1) {
+    if (pointCount <= 1) {
       return padding.left + plotW / 2;
     }
-    return padding.left + (i / (testCount - 1)) * plotW;
+    return padding.left + (i / (pointCount - 1)) * plotW;
   };
   const yForScore = (score) => {
     const clamped = Math.max(0, Math.min(maxTotal, score));
     return padding.top + (1 - clamped / maxTotal) * plotH;
   };
 
-  drawChartGrid(ctx, { width, height, padding, plotW, plotH, testCount, maxTotal, xForIndex, yForScore });
+  drawChartGrid(ctx, {
+    width,
+    height,
+    padding,
+    plotW,
+    plotH,
+    testCount,
+    pointCount,
+    maxTotal,
+    xForIndex,
+    yForScore,
+  });
 
   const modelsByFinal = [...state.modelOrder].sort((a, b) => {
     const ta = calculateTotalScore(a);
@@ -200,9 +286,18 @@ function renderProgressChart() {
     if (!series) {
       return;
     }
-    const color = colorForModel(modelName);
+    const color = state.modelColors?.[modelName] || colorForModel(modelName);
     drawSeries(ctx, series, { idx, color, xForIndex, yForScore });
   });
+
+  // Always draw a small legend hint to confirm the chart rendered.
+  ctx.save();
+  ctx.fillStyle = "rgba(164, 169, 183, 0.9)";
+  ctx.font = "11px system-ui, -apple-system, Segoe UI, Roboto, sans-serif";
+  ctx.textAlign = "right";
+  ctx.textBaseline = "bottom";
+  ctx.fillText(`${state.modelOrder.length} models`, width - 10, height - 8);
+  ctx.restore();
 }
 
 function drawChartMessage(ctx, width, height, message) {
@@ -215,9 +310,9 @@ function drawChartMessage(ctx, width, height, message) {
   ctx.restore();
 }
 
-function drawChartGrid(ctx, { width, height, padding, plotW, plotH, testCount, maxTotal, xForIndex, yForScore }) {
+function drawChartGrid(ctx, { width, height, padding, plotW, plotH, testCount, pointCount, maxTotal, xForIndex, yForScore }) {
   ctx.save();
-  ctx.strokeStyle = "rgba(164, 169, 183, 0.22)";
+  ctx.strokeStyle = "rgba(164, 169, 183, 0.35)";
   ctx.lineWidth = 1;
 
   // Outer bounds
@@ -225,7 +320,7 @@ function drawChartGrid(ctx, { width, height, padding, plotW, plotH, testCount, m
 
   // Horizontal grid + labels
   const steps = 4;
-  ctx.fillStyle = "rgba(164, 169, 183, 0.85)";
+  ctx.fillStyle = "rgba(244, 241, 236, 0.9)";
   ctx.font = "11px var(--mono, ui-monospace)";
   ctx.textAlign = "right";
   ctx.textBaseline = "middle";
@@ -241,13 +336,25 @@ function drawChartGrid(ctx, { width, height, padding, plotW, plotH, testCount, m
   }
 
   // Vertical grid (tests)
-  ctx.strokeStyle = "rgba(164, 169, 183, 0.12)";
-  for (let i = 0; i < testCount; i += 1) {
+  ctx.strokeStyle = "rgba(164, 169, 183, 0.18)";
+  for (let i = 0; i <= testCount; i += 1) {
     const x = xForIndex(i);
     ctx.beginPath();
     ctx.moveTo(x, padding.top);
     ctx.lineTo(x, padding.top + plotH);
     ctx.stroke();
+  }
+
+  // Test index labels (1..N) along the x axis.
+  const approxLabelWidth = 14;
+  const step = Math.max(1, Math.ceil(testCount / Math.max(1, Math.floor(plotW / approxLabelWidth))));
+  ctx.fillStyle = "rgba(244, 241, 236, 0.78)";
+  ctx.font = "10px var(--mono, ui-monospace)";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "top";
+  for (let i = 1; i <= testCount; i += step) {
+    const x = xForIndex(i);
+    ctx.fillText(String(i), x, padding.top + plotH + 8);
   }
 
   // x-axis hint
@@ -260,10 +367,10 @@ function drawChartGrid(ctx, { width, height, padding, plotW, plotH, testCount, m
 function drawSeries(ctx, series, { idx, color, xForIndex, yForScore }) {
   ctx.save();
   const emphasized = idx < 5;
-  ctx.lineWidth = emphasized ? 2.2 : 1.5;
+  ctx.lineWidth = emphasized ? 2.6 : 1.7;
   ctx.strokeStyle = color;
   ctx.fillStyle = color;
-  ctx.globalAlpha = emphasized ? 0.8 : 0.35;
+  ctx.globalAlpha = emphasized ? 1 : 0.65;
 
   // Draw segments (stop at nulls).
   ctx.beginPath();
@@ -289,8 +396,8 @@ function drawSeries(ctx, series, { idx, color, xForIndex, yForScore }) {
   }
 
   // Draw points so partial progress is visible even with 1 completed test.
-  ctx.globalAlpha = emphasized ? 0.85 : 0.45;
-  const radius = emphasized ? 2.6 : 1.8;
+  ctx.globalAlpha = emphasized ? 1 : 0.85;
+  const radius = emphasized ? 3.0 : 2.2;
   series.forEach((score, i) => {
     if (!Number.isFinite(score)) {
       return;
@@ -310,23 +417,31 @@ function buildCumulativeSeries(modelName) {
   if (state.tests.length === 0) {
     return null;
   }
-  const series = [];
-  let running = 0;
-  let hasAny = false;
-  state.tests.forEach((test) => {
+  const scores = state.tests.map((test) => {
     const row = modelResults[test.id];
-    const score = row ? toNumber(row.score) : null;
-    if (Number.isFinite(score)) {
-      running += score;
-      hasAny = true;
-      series.push(running);
-      return;
-    }
-    series.push(hasAny ? null : 0);
+    return row ? toNumber(row.score) : null;
   });
-  if (!hasAny) {
+  let lastWithScore = -1;
+  scores.forEach((score, idx) => {
+    if (Number.isFinite(score)) {
+      lastWithScore = idx;
+    }
+  });
+  if (lastWithScore < 0) {
     return null;
   }
+  const series = [0];
+  let running = 0;
+  scores.forEach((score, idx) => {
+    if (idx > lastWithScore) {
+      series.push(null);
+      return;
+    }
+    if (Number.isFinite(score)) {
+      running += score;
+    }
+    series.push(running);
+  });
   return series;
 }
 
@@ -444,6 +559,10 @@ function renderTable() {
     nameText.textContent = formatModelName(model);
     nameText.className = "cell-mono";
     nameText.title = model;
+    const modelColor = state.modelColors?.[model];
+    if (modelColor) {
+      nameText.style.color = modelColor;
+    }
     nameWrap.append(nameText);
     nameCell.appendChild(nameWrap);
     row.appendChild(nameCell);

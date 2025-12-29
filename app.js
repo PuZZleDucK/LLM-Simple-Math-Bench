@@ -3,9 +3,9 @@ const RESULTS_ENDPOINT = "/api/results";
 const RAW_RESULTS_ENDPOINT = "/api/results.csv";
 const CLEAR_RESULTS_ENDPOINT = "/api/clear";
 const UI_STATE_KEY = "ollama-bench-ui-v1";
-const DEFAULT_NUM_PREDICT = 10000;
-const RUNS_PER_TEST = 3;
-const TOAST_TTL_MS = 8000;
+const DEFAULT_NUM_PREDICT = 3000;
+const RUNS_PER_TEST = 2;
+const TOAST_TTL_MS = 18000;
 const TOAST_MAX_VISIBLE = 4;
 
 const tests = [
@@ -1351,7 +1351,7 @@ function renderTable() {
       const result = modelResults[test.id];
       const cell = document.createElement("td");
       if (!result || result.maxScore !== test.maxScore) {
-        cell.textContent = "pending";
+        cell.textContent = "...";
         cell.className = "pending";
 	      } else if (result.error) {
 	        cell.textContent = "error";
@@ -1736,11 +1736,14 @@ async function loadResults() {
 }
 
 async function persistResult(modelName, test, result) {
+  const modelInfo = state.models.find((model) => model?.name === modelName) || null;
   const entries = [];
   const aggregateTimestamp = result.completedAt || new Date().toISOString();
   entries.push({
     timestamp: aggregateTimestamp,
     model: modelName,
+    model_size_bytes: modelInfo?.sizeBytes ?? "",
+    model_param_b: modelInfo?.sizeB ?? "",
     test_id: test.id,
     test_name: test.shortName || test.name,
     case_id: "",
@@ -1765,6 +1768,8 @@ async function persistResult(modelName, test, result) {
       entries.push({
         timestamp: caseResult.completedAt || aggregateTimestamp,
         model: modelName,
+        model_size_bytes: modelInfo?.sizeBytes ?? "",
+        model_param_b: modelInfo?.sizeB ?? "",
         test_id: test.id,
         test_name: test.shortName || test.name,
         case_id: caseResult.caseId ?? "",

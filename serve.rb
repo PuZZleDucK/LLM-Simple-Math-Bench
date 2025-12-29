@@ -15,6 +15,8 @@ PORT = (ENV["PORT"] || 4567).to_i
 HEADERS = [
   "timestamp",
   "model",
+  "model_size_bytes",
+  "model_param_b",
   "test_id",
   "test_name",
   "case_id",
@@ -44,9 +46,23 @@ server = WEBrick::HTTPServer.new(
 )
 
 def ensure_results_file
-  return if File.exist?(RESULTS_FILE) && File.size?(RESULTS_FILE)
+  unless File.exist?(RESULTS_FILE) && File.size?(RESULTS_FILE)
+    CSV.open(RESULTS_FILE, "w") { |csv| csv << HEADERS }
+    return
+  end
 
-  CSV.open(RESULTS_FILE, "w") { |csv| csv << HEADERS }
+  existing_headers = CSV.open(RESULTS_FILE, "r", &:shift)
+  return if existing_headers == HEADERS
+
+  tmp_path = "#{RESULTS_FILE}.tmp"
+  CSV.open(tmp_path, "w") do |csv|
+    csv << HEADERS
+    CSV.foreach(RESULTS_FILE, headers: true) do |row|
+      csv << HEADERS.map { |header| row[header] || "" }
+    end
+  end
+
+  FileUtils.mv(tmp_path, RESULTS_FILE)
 end
 
 def number_or_nil(value)
