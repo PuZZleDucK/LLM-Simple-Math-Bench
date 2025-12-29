@@ -237,24 +237,49 @@ function drawChartGrid(ctx, { width, height, padding, plotW, plotH, testCount, m
 
 function drawSeries(ctx, series, { idx, color, xForIndex, yForScore }) {
   ctx.save();
-  ctx.lineWidth = 1.5;
+  const emphasized = idx < 5;
+  ctx.lineWidth = emphasized ? 2.2 : 1.5;
   ctx.strokeStyle = color;
-  ctx.globalAlpha = 0.18;
-  if (idx < 5) {
-    ctx.globalAlpha = 0.55;
-    ctx.lineWidth = 2.2;
-  }
+  ctx.fillStyle = color;
+  ctx.globalAlpha = emphasized ? 0.55 : 0.18;
+
+  // Draw segments (stop at nulls).
   ctx.beginPath();
+  let hasSegment = false;
+  let segmentStarted = false;
   series.forEach((score, i) => {
+    if (!Number.isFinite(score)) {
+      segmentStarted = false;
+      return;
+    }
     const x = xForIndex(i);
     const y = yForScore(score);
-    if (i === 0) {
+    if (!segmentStarted) {
       ctx.moveTo(x, y);
+      segmentStarted = true;
+      hasSegment = true;
     } else {
       ctx.lineTo(x, y);
     }
   });
-  ctx.stroke();
+  if (hasSegment) {
+    ctx.stroke();
+  }
+
+  // Draw points so partial progress is visible even with 1 completed test.
+  ctx.globalAlpha = emphasized ? 0.85 : 0.45;
+  const radius = emphasized ? 2.6 : 1.8;
+  series.forEach((score, i) => {
+    if (!Number.isFinite(score)) {
+      return;
+    }
+    const x = xForIndex(i);
+    const y = yForScore(score);
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, Math.PI * 2);
+    ctx.fill();
+  });
+
   ctx.restore();
 }
 
@@ -265,14 +290,21 @@ function buildCumulativeSeries(modelName) {
   }
   const series = [];
   let running = 0;
+  let hasAny = false;
   state.tests.forEach((test) => {
     const row = modelResults[test.id];
     const score = row ? toNumber(row.score) : null;
     if (Number.isFinite(score)) {
       running += score;
+      hasAny = true;
+      series.push(running);
+      return;
     }
-    series.push(running);
+    series.push(hasAny ? null : 0);
   });
+  if (!hasAny) {
+    return null;
+  }
   return series;
 }
 
