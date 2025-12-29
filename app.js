@@ -1,8 +1,12 @@
-const OLLAMA_URL = "http://dundee.tail31c56b.ts.net:11434";
+const OLLAMA_URL = "http://127.0.0.1:11434";
 const RESULTS_ENDPOINT = "/api/results";
 const RAW_RESULTS_ENDPOINT = "/api/results.csv";
 const CLEAR_RESULTS_ENDPOINT = "/api/clear";
 const UI_STATE_KEY = "ollama-bench-ui-v1";
+const DEFAULT_NUM_PREDICT = 20000;
+const RUNS_PER_TEST = 5;
+const TOAST_TTL_MS = 8000;
+const TOAST_MAX_VISIBLE = 4;
 
 const tests = [
   createMultiPromptTest({
@@ -198,6 +202,7 @@ const state = {
   error: null,
   resultsError: null,
   excludedModels: new Set(),
+  runtimeInfo: {},
 };
 
 const elements = {
@@ -216,9 +221,287 @@ const elements = {
   resultsTable: document.getElementById("resultsTable"),
 };
 
-init();
+let toastContainer = null;
+const toastDedupe = new Map();
+let hoverTooltip = null;
+
+function ensureToastContainer() {
+  if (toastContainer) {
+    return toastContainer;
+  }
+  toastContainer = document.createElement("div");
+  toastContainer.className = "toast-container";
+  toastContainer.setAttribute("aria-live", "polite");
+  toastContainer.setAttribute("aria-atomic", "true");
+  document.body.appendChild(toastContainer);
+  return toastContainer;
+}
+
+function truncateText(text, maxLen) {
+  const value = String(text ?? "");
+  if (value.length <= maxLen) {
+    return value;
+  }
+  return `${value.slice(0, Math.max(0, maxLen - 1))}…`;
+}
+
+function removeToast(key) {
+  const entry = toastDedupe.get(key);
+  if (!entry) {
+    return;
+  }
+  clearTimeout(entry.timeoutId);
+  if (entry.element && entry.element.parentNode) {
+    entry.element.parentNode.removeChild(entry.element);
+  }
+  toastDedupe.delete(key);
+}
+
+function showToast(message, { variant = "error", dedupeKey = null, ttlMs = TOAST_TTL_MS } = {}) {
+  const container = ensureToastContainer();
+  const safeMessage = truncateText(message, 240);
+  const key = dedupeKey || `${variant}:${safeMessage}`;
+
+  const existing = toastDedupe.get(key);
+  if (existing && existing.element && existing.element.parentNode) {
+    existing.count += 1;
+    const countEl = existing.element.querySelector(".toast-count");
+    if (countEl) {
+      countEl.textContent = `x${existing.count}`;
+    }
+    clearTimeout(existing.timeoutId);
+    existing.timeoutId = setTimeout(() => removeToast(key), ttlMs);
+    return;
+  }
+
+  const toast = document.createElement("div");
+  toast.className = `toast toast--${variant}`;
+
+  const messageEl = document.createElement("div");
+  messageEl.className = "toast-message";
+  messageEl.textContent = safeMessage;
+
+  const meta = document.createElement("div");
+  meta.className = "toast-meta";
+
+  const countEl = document.createElement("span");
+  countEl.className = "toast-count";
+  countEl.textContent = "";
+
+  const closeBtn = document.createElement("button");
+  closeBtn.type = "button";
+  closeBtn.className = "toast-close";
+  closeBtn.setAttribute("aria-label", "Dismiss");
+  closeBtn.textContent = "×";
+  closeBtn.addEventListener("click", () => removeToast(key));
+
+  meta.append(countEl, closeBtn);
+  toast.append(messageEl, meta);
+
+  container.prepend(toast);
+
+  while (container.children.length > TOAST_MAX_VISIBLE) {
+    const last = container.lastElementChild;
+    if (!last) {
+      break;
+    }
+    last.remove();
+    for (const [mapKey, entry] of toastDedupe.entries()) {
+      if (entry.element === last) {
+        toastDedupe.delete(mapKey);
+        break;
+      }
+    }
+  }
+
+  const timeoutId = setTimeout(() => removeToast(key), ttlMs);
+  toastDedupe.set(key, { element: toast, count: 1, timeoutId });
+}
+
+function notifyRunError({ modelName, testName, caseId, error }) {
+  const prefix = [modelName, testName, caseId].filter(Boolean).join(" / ");
+  showToast(`${prefix}: ${error}`, {
+    variant: "error",
+    dedupeKey: `${prefix}|${String(error)}`,
+  });
+}
+
+function ensureHoverTooltip() {
+  if (hoverTooltip) {
+    return hoverTooltip;
+  }
+  hoverTooltip = document.createElement("div");
+  hoverTooltip.className = "hover-tooltip";
+  hoverTooltip.setAttribute("role", "tooltip");
+  hoverTooltip.style.display = "none";
+  const pre = document.createElement("pre");
+  pre.className = "hover-tooltip__pre";
+  hoverTooltip.appendChild(pre);
+  document.body.appendChild(hoverTooltip);
+  return hoverTooltip;
+}
+
+function positionHoverTooltip(event) {
+  if (!hoverTooltip || hoverTooltip.style.display === "none") {
+    return;
+  }
+  const margin = 12;
+  const maxLeft = window.innerWidth - hoverTooltip.offsetWidth - margin;
+  const maxTop = window.innerHeight - hoverTooltip.offsetHeight - margin;
+  const left = Math.max(margin, Math.min(maxLeft, event.clientX + margin));
+  const top = Math.max(margin, Math.min(maxTop, event.clientY + margin));
+  hoverTooltip.style.left = `${left}px`;
+  hoverTooltip.style.top = `${top}px`;
+}
+
+function bindHoverTooltip(element, text) {
+  if (!element || !text) {
+    return;
+  }
+  ensureHoverTooltip();
+  element.addEventListener("pointerenter", (event) => {
+    const tooltip = ensureHoverTooltip();
+    const pre = tooltip.querySelector(".hover-tooltip__pre");
+    if (pre) {
+      pre.textContent = text;
+    }
+    tooltip.style.display = "block";
+    positionHoverTooltip(event);
+  });
+  element.addEventListener("pointermove", (event) => {
+    positionHoverTooltip(event);
+  });
+  element.addEventListener("pointerleave", () => {
+    if (!hoverTooltip) {
+      return;
+    }
+    hoverTooltip.style.display = "none";
+  });
+}
+
+function formatPercent(value) {
+  if (!Number.isFinite(value)) {
+    return null;
+  }
+  const clamped = Math.max(0, Math.min(100, value));
+  return `${clamped.toFixed(clamped >= 10 ? 0 : 1)}%`;
+}
+
+function formatGb(sizeBytes) {
+  if (!Number.isFinite(sizeBytes) || sizeBytes <= 0) {
+    return null;
+  }
+  const gb = sizeBytes / 1e9;
+  return `${gb.toFixed(gb >= 10 ? 1 : 2)} GB`;
+}
+
+async function fetchRuntimeInfo(modelName) {
+  const response = await fetch(`${OLLAMA_URL}/api/ps`);
+  if (!response.ok) {
+    throw new Error("Unable to fetch /api/ps");
+  }
+  const data = await response.json();
+  const models = Array.isArray(data?.models) ? data.models : [];
+  const entry =
+    models.find((m) => m?.name === modelName) || models.find((m) => m?.model === modelName);
+  if (!entry) {
+    return null;
+  }
+  const totalBytes = Number(entry?.size);
+  const vramBytes = Number(entry?.size_vram);
+  const total = Number.isFinite(totalBytes) ? totalBytes : null;
+  const vram = Number.isFinite(vramBytes) ? vramBytes : null;
+  if (!Number.isFinite(total) || total <= 0) {
+    return null;
+  }
+  const gpuShare = Number.isFinite(vram) && vram > 0 ? Math.min(1, vram / total) : 0;
+  const gpuPercent = gpuShare * 100;
+  const cpuPercent = 100 - gpuPercent;
+  return {
+    totalBytes: total,
+    vramBytes: Number.isFinite(vram) ? vram : 0,
+    cpuPercent,
+    gpuPercent,
+    contextLength: Number(entry?.context_length) || null,
+  };
+}
+
+function getModelInfoNumber(modelInfo, suffix) {
+  if (!modelInfo || typeof modelInfo !== "object") {
+    return null;
+  }
+  for (const [key, value] of Object.entries(modelInfo)) {
+    if (!key.endsWith(suffix)) {
+      continue;
+    }
+    const number = Number(value);
+    return Number.isFinite(number) ? number : null;
+  }
+  return null;
+}
+
+function estimateContextBytesFromModelInfo(modelInfo) {
+  const contextTokens = getModelInfoNumber(modelInfo, ".context_length");
+  const layers = getModelInfoNumber(modelInfo, ".block_count");
+  const headCountKv = getModelInfoNumber(modelInfo, ".attention.head_count_kv");
+  const keyLength = getModelInfoNumber(modelInfo, ".attention.key_length");
+  const valueLength = getModelInfoNumber(modelInfo, ".attention.value_length");
+  if (
+    !Number.isFinite(contextTokens) ||
+    !Number.isFinite(layers) ||
+    !Number.isFinite(headCountKv) ||
+    !Number.isFinite(keyLength) ||
+    !Number.isFinite(valueLength)
+  ) {
+    return { contextTokens: Number.isFinite(contextTokens) ? contextTokens : null, bytes: null };
+  }
+
+  // Best-effort estimate of KV cache size at max context length.
+  // Assumes fp16 cache (2 bytes per element) and ignores overhead.
+  const bytesPerElement = 2;
+  const bytes =
+    contextTokens * layers * headCountKv * (keyLength + valueLength) * bytesPerElement;
+  return { contextTokens, bytes: Number.isFinite(bytes) && bytes > 0 ? bytes : null };
+}
+
+async function fetchModelInfo(modelName) {
+  const response = await fetch(`${OLLAMA_URL}/api/show`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name: modelName }),
+  });
+  if (!response.ok) {
+    throw new Error("Unable to fetch /api/show");
+  }
+  const data = await response.json();
+  return data?.model_info ?? null;
+}
+
+async function updateRuntimeInfo(modelName) {
+  try {
+    const info = await fetchRuntimeInfo(modelName);
+    if (info) {
+      const merged = { ...info };
+      try {
+        const modelInfo = await fetchModelInfo(modelName);
+        const contextEstimate = estimateContextBytesFromModelInfo(modelInfo);
+        merged.contextTokens = contextEstimate.contextTokens;
+        merged.contextBytesEstimated = contextEstimate.bytes;
+      } catch {
+        // Ignore /api/show failures; runtime info is still useful.
+      }
+      state.runtimeInfo[modelName] = merged;
+    }
+  } catch (error) {
+    showToast(`Failed to read runtime info (${modelName}): ${String(error?.message || error)}`, {
+      variant: "error",
+      dedupeKey: `runtime:${modelName}:${String(error?.message || error)}`,
+    });
+  }
+}
 
 async function init() {
+  ensureToastContainer();
   loadUiStateFromStorage();
   bindEvents();
   await loadResults();
@@ -279,56 +562,74 @@ function saveUiStateToStorage() {
 }
 
 function createMultiPromptTest({ id, name, cases }) {
-  const maxScore = cases.length * 2;
+  const maxScore = cases.length * 2 * RUNS_PER_TEST;
   return {
     id,
     name,
     minScore: 0,
     maxScore,
+    caseCount: cases.length,
+    repeatCount: RUNS_PER_TEST,
+    runCount: cases.length * RUNS_PER_TEST,
     run: async (modelName) => {
       const caseResults = [];
       let totalScore = 0;
       const statsTotals = createStatsAccumulator();
+      const runStats = [];
 
-      for (const [index, testCase] of cases.entries()) {
-        const caseId = testCase.id || `case-${index + 1}`;
-        const prompt = testCase.prompt;
-        const expected = String(testCase.expected);
-        const matchMode = testCase.matchMode || "literal";
-        let output = "";
-        let error = "";
-        let stats = {};
-        let caseScore = 0;
+      for (let runIndex = 0; runIndex < RUNS_PER_TEST; runIndex += 1) {
+        const runAccumulator = createStatsAccumulator();
+        for (const [index, testCase] of cases.entries()) {
+          const rawCaseId = testCase.id || `case-${index + 1}`;
+          const caseId = `${rawCaseId} #${runIndex + 1}`;
+          const prompt = testCase.prompt;
+          const expected = String(testCase.expected);
+          const matchMode = testCase.matchMode || "literal";
+          let output = "";
+          let error = "";
+          let stats = {};
+          let caseScore = 0;
 
-        try {
-          const response = await callChat(modelName, prompt);
-          output = response.content.trim();
-          stats = response.stats;
-          addStats(statsTotals, stats);
-          const { contains, exactOnly } = scoreAnswer(output, expected, matchMode);
-          if (contains) {
-            caseScore += 1;
+          try {
+            const response = await callChat(modelName, prompt);
+            output = response.content.trim();
+            stats = response.stats;
+            addStats(statsTotals, stats);
+            addStats(runAccumulator, stats);
+            const { contains, exactOnly } = scoreAnswer(output, expected, matchMode);
+            if (contains) {
+              caseScore += 1;
+            }
+            if (exactOnly) {
+              caseScore += 1;
+            }
+          } catch (err) {
+            error = String(err?.message || err);
+            notifyRunError({ modelName, testName: name, caseId, error });
           }
-          if (exactOnly) {
-            caseScore += 1;
-          }
-        } catch (err) {
-          error = String(err?.message || err);
+
+          totalScore += caseScore;
+          caseResults.push({
+            caseId,
+            prompt,
+            expected,
+            score: caseScore,
+            maxScore: 2,
+            output,
+            error,
+            completedAt: new Date().toISOString(),
+            ...stats,
+          });
         }
-
-        totalScore += caseScore;
-        caseResults.push({
-          caseId,
-          prompt,
-          expected,
-          score: caseScore,
-          maxScore: 2,
-          output,
-          error,
-          completedAt: new Date().toISOString(),
-          ...stats,
-        });
+        runStats.push(finalizeStats(runAccumulator));
       }
+
+      const avgPromptTokensPerSecond = averageFinite(
+        runStats.map((stats) => stats.promptTokensPerSecond)
+      );
+      const avgEvalTokensPerSecond = averageFinite(
+        runStats.map((stats) => stats.evalTokensPerSecond)
+      );
 
       const outputSummary = caseResults
         .map((caseResult) => {
@@ -350,6 +651,10 @@ function createMultiPromptTest({ id, name, cases }) {
         completedAt: new Date().toISOString(),
         caseResults,
         ...aggregatedStats,
+        avgPromptTokensPerSecond,
+        avgEvalTokensPerSecond,
+        promptTokensPerSecond: avgPromptTokensPerSecond ?? aggregatedStats.promptTokensPerSecond,
+        evalTokensPerSecond: avgEvalTokensPerSecond ?? aggregatedStats.evalTokensPerSecond,
       };
     },
   };
@@ -391,7 +696,7 @@ async function callChat(modelName, prompt) {
     stream: false,
     options: {
       temperature: 0,
-      num_predict: 64,
+      num_predict: DEFAULT_NUM_PREDICT,
     },
   };
 
@@ -407,6 +712,9 @@ async function callChat(modelName, prompt) {
   }
 
   const data = await response.json();
+  if (data?.error) {
+    throw new Error(String(data.error));
+  }
   const stats = {
     promptEvalCount: toNumber(data?.prompt_eval_count),
     evalCount: toNumber(data?.eval_count),
@@ -423,8 +731,18 @@ async function callChat(modelName, prompt) {
     stats.evalCount,
     stats.evalDuration
   );
+  const content = data?.message?.content ?? "";
+  if (!content || !content.trim()) {
+    const doneReason = data?.done_reason ? String(data.done_reason) : "";
+    const hasThinking = Boolean(data?.message?.thinking);
+    throw new Error(
+      hasThinking && doneReason === "length"
+        ? `Empty response (hit token limit at num_predict=${DEFAULT_NUM_PREDICT})`
+        : "Empty response"
+    );
+  }
   return {
-    content: data?.message?.content ?? "",
+    content,
     stats,
   };
 }
@@ -432,6 +750,24 @@ async function callChat(modelName, prompt) {
 function toNumber(value) {
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
+}
+
+function averageFinite(values) {
+  if (!Array.isArray(values) || values.length === 0) {
+    return null;
+  }
+  let sum = 0;
+  let count = 0;
+  values.forEach((value) => {
+    if (Number.isFinite(value)) {
+      sum += value;
+      count += 1;
+    }
+  });
+  if (count === 0) {
+    return null;
+  }
+  return sum / count;
 }
 
 function calculateTokensPerSecond(tokens, durationNs) {
@@ -810,16 +1146,20 @@ function renderTable() {
   models.forEach((model, index) => {
     const row = document.createElement("tr");
     row.style.animationDelay = `${index * 20}ms`;
-    if (state.excludedModels.has(model.name)) {
-      row.classList.add("row-excluded");
-    }
-    const nameCell = document.createElement("td");
-    const nameWrap = document.createElement("div");
-    nameWrap.className = "model-name";
-    const excludeBtn = document.createElement("button");
-    excludeBtn.type = "button";
-    excludeBtn.className = "exclude-btn";
-    excludeBtn.textContent = "x";
+	    if (state.excludedModels.has(model.name)) {
+	      row.classList.add("row-excluded");
+	    }
+	    const nameCell = document.createElement("td");
+	    const nameWrap = document.createElement("div");
+	    nameWrap.className = "model-name";
+	    const nameTop = document.createElement("div");
+	    nameTop.className = "model-name__top";
+	    const nameMeta = document.createElement("div");
+	    nameMeta.className = "model-name__meta";
+	    const excludeBtn = document.createElement("button");
+	    excludeBtn.type = "button";
+	    excludeBtn.className = "exclude-btn";
+	    excludeBtn.textContent = "x";
     excludeBtn.title = state.excludedModels.has(model.name)
       ? "Excluded from runs"
       : "Exclude model from runs";
@@ -833,31 +1173,51 @@ function renderTable() {
     nameText.textContent = formatModelName(model.name);
     nameText.className = "cell-mono";
     nameText.title = model.name;
-    const sizeText = document.createElement("span");
-    sizeText.className = "model-size";
-    sizeText.textContent = formatModelSize(model.sizeB, model.sizeBytes) || "n/a";
-    nameWrap.append(excludeBtn, nameText, sizeText);
-    nameCell.appendChild(nameWrap);
-    row.appendChild(nameCell);
+	    const sizeText = document.createElement("span");
+	    sizeText.className = "model-size";
+	    sizeText.textContent = formatModelSize(model.sizeB, model.sizeBytes) || "n/a";
+	    const runtimeText = document.createElement("span");
+	    runtimeText.className = "model-runtime";
+	    const runtimeInfo = state.runtimeInfo[model.name];
+	    if (runtimeInfo) {
+	      const cpuPct = formatPercent(runtimeInfo.cpuPercent) || "?";
+	      const gpuPct = formatPercent(runtimeInfo.gpuPercent) || "?";
+	      const runningSize = formatGb(runtimeInfo.totalBytes) || "n/a";
+	      const ctxGb = formatGb(runtimeInfo.contextBytesEstimated);
+	      runtimeText.textContent = ctxGb
+	        ? `runtime: CPU ${cpuPct} / GPU ${gpuPct} • ${runningSize} • ctx ~${ctxGb}`
+	        : `runtime: CPU ${cpuPct} / GPU ${gpuPct} • ${runningSize}`;
+	    } else {
+	      runtimeText.textContent = "";
+	    }
+
+	    nameTop.append(excludeBtn, nameText);
+	    nameMeta.append(sizeText);
+	    if (runtimeText.textContent) {
+	      nameMeta.append(runtimeText);
+	    }
+	    nameWrap.append(nameTop, nameMeta);
+	    nameCell.appendChild(nameWrap);
+	    row.appendChild(nameCell);
 
     const modelResults = state.results[model.name] || {};
 
     tests.forEach((test) => {
       const result = modelResults[test.id];
       const cell = document.createElement("td");
-      if (!result) {
+      if (!result || result.maxScore !== test.maxScore) {
         cell.textContent = "pending";
         cell.className = "pending";
-      } else if (result.error) {
-        cell.textContent = "error";
-        cell.className = "error";
-        const tooltip = formatResultTooltip(result, test);
-        if (tooltip) {
-          cell.title = tooltip;
-        }
-      } else if (typeof result.score === "number") {
-        const scoreWrap = document.createElement("div");
-        scoreWrap.className = "score-stack";
+	      } else if (result.error) {
+	        cell.textContent = "error";
+	        cell.className = "error";
+	        const tooltip = formatResultTooltip(result, test);
+	        if (tooltip) {
+	          bindHoverTooltip(cell, tooltip);
+	        }
+	      } else if (typeof result.score === "number") {
+	        const scoreWrap = document.createElement("div");
+	        scoreWrap.className = "score-stack";
         const chip = document.createElement("span");
         chip.className = "score-chip";
         chip.textContent = formatScore(result.score, result.maxScore);
@@ -867,22 +1227,29 @@ function renderTable() {
           chip.classList.add("score-chip--zero");
         }
         scoreWrap.appendChild(chip);
-        const totalDuration = getResultDurationNs(result);
-        const durationText = formatDurationNs(totalDuration);
-        if (durationText) {
-          const time = document.createElement("div");
-          time.className = "time-sub";
-          time.textContent = durationText;
-          scoreWrap.appendChild(time);
-        }
-        const tooltip = formatResultTooltip(result, test);
-        if (tooltip) {
-          scoreWrap.title = tooltip;
-        }
-        cell.appendChild(scoreWrap);
-      } else {
-        cell.textContent = "pending";
-        cell.className = "pending";
+	        const avgDuration = getResultAverageDurationNs(result, test);
+	        const durationText = formatDurationNs(avgDuration);
+	        if (durationText) {
+	          const time = document.createElement("div");
+	          time.className = "time-sub";
+	          time.textContent = `${durationText}`;
+	          scoreWrap.appendChild(time);
+	        }
+	        const avgTokensPerSecond = getResultAverageTokensPerSecond(result);
+	        if (Number.isFinite(avgTokensPerSecond) && avgTokensPerSecond > 0) {
+	          const tps = document.createElement("div");
+	          tps.className = "time-sub";
+	          tps.textContent = `${avgTokensPerSecond.toFixed(1)} t/s`;
+	          scoreWrap.appendChild(tps);
+	        }
+	        const tooltip = formatResultTooltip(result, test);
+	        if (tooltip) {
+	          bindHoverTooltip(scoreWrap, tooltip);
+	        }
+	        cell.appendChild(scoreWrap);
+	      } else {
+	        cell.textContent = "...";
+	        cell.className = "pending";
       }
       row.appendChild(cell);
     });
@@ -904,7 +1271,7 @@ function calculateAverage(modelName) {
 
   tests.forEach((test) => {
     const result = results[test.id];
-    if (result && typeof result.score === "number") {
+    if (result && result.maxScore === test.maxScore && typeof result.score === "number") {
       totalScore += result.score;
       totalMax += result.maxScore;
     }
@@ -931,39 +1298,51 @@ async function runUnrunBenchmarks() {
   toggleButtons(true);
 
   try {
-    for (const model of state.filteredModels) {
-      if (state.excludedModels.has(model.name)) {
-        continue;
-      }
-      const modelResults = state.results[model.name] || {};
-      for (const test of tests) {
-        if (modelResults[test.id]) {
-          continue;
-        }
-        setStatus(`Running ${test.name} on ${model.name}`);
-        try {
-          const result = await test.run(model.name);
-          const completedAt = new Date().toISOString();
-          modelResults[test.id] = {
-            ...result,
-            completedAt,
-          };
-          await persistResult(model.name, test, modelResults[test.id]);
-        } catch (error) {
-          const completedAt = new Date().toISOString();
-          modelResults[test.id] = {
-            error: String(error.message || error),
-            maxScore: test.maxScore,
-            completedAt,
-          };
-          await persistResult(model.name, test, modelResults[test.id]);
-        }
-        state.results[model.name] = modelResults;
-        state.lastUpdated = new Date();
-        render();
-      }
-    }
-  } finally {
+	    for (const model of state.filteredModels) {
+	      if (state.excludedModels.has(model.name)) {
+	        continue;
+	      }
+	      let runtimeCaptured = Boolean(state.runtimeInfo[model.name]);
+	      const modelResults = state.results[model.name] || {};
+	      for (const test of tests) {
+	        const existing = modelResults[test.id];
+	        if (existing && existing.maxScore === test.maxScore) {
+	          continue;
+	        }
+	        setStatus(`Running ${test.name} on ${model.name}`);
+	        try {
+	          const result = await test.run(model.name);
+	          const completedAt = new Date().toISOString();
+	          modelResults[test.id] = {
+	            ...result,
+	            completedAt,
+	          };
+	          await persistResult(model.name, test, modelResults[test.id]);
+	        } catch (error) {
+	          const completedAt = new Date().toISOString();
+	          notifyRunError({
+	            modelName: model.name,
+	            testName: test.name,
+	            caseId: null,
+	            error: String(error?.message || error),
+	          });
+	          modelResults[test.id] = {
+	            error: String(error.message || error),
+	            maxScore: test.maxScore,
+	            completedAt,
+	          };
+	          await persistResult(model.name, test, modelResults[test.id]);
+	        }
+	        if (!runtimeCaptured) {
+	          await updateRuntimeInfo(model.name);
+	          runtimeCaptured = Boolean(state.runtimeInfo[model.name]);
+	        }
+	        state.results[model.name] = modelResults;
+	        state.lastUpdated = new Date();
+	        render();
+	      }
+	    }
+	  } finally {
     state.running = false;
     setStatus("Idle");
     toggleButtons(false);
@@ -1014,24 +1393,30 @@ function formatResultTooltip(result, test) {
     return "";
   }
   const lines = [];
+  const prefixForScore = (score, maxScore) =>
+    typeof score === "number" && typeof maxScore === "number" && score === maxScore
+      ? "✅"
+      : "❌";
   if (result.error) {
-    lines.push(`Error: ${result.error}`);
+    lines.push(`❌ Error: ${result.error}`);
   }
   if (Array.isArray(result.caseResults) && result.caseResults.length > 0) {
     result.caseResults.forEach((caseResult) => {
       const label = caseResult.caseId || test?.name || "case";
       if (caseResult.error) {
-        lines.push(`${label}: error: ${caseResult.error}`);
+        lines.push(`❌ ${label}: error: ${caseResult.error}`);
       } else if (caseResult.output) {
-        lines.push(`${label}: ${caseResult.output}`);
+        const prefix = prefixForScore(caseResult.score, caseResult.maxScore);
+        lines.push(`${prefix} ${label}: ${caseResult.output}`);
       } else {
-        lines.push(`${label}: (no output)`);
+        lines.push(`❌ ${label}: (no output)`);
       }
     });
   } else if (result.output) {
-    lines.push(result.output.trim());
+    const prefix = prefixForScore(result.score, result.maxScore);
+    lines.push(`${prefix} ${result.output.trim()}`);
   }
-  return lines.join("\n---\n");
+  return lines.join("\n");
 }
 
 function getResultDurationNs(result) {
@@ -1051,6 +1436,35 @@ function getResultDurationNs(result) {
       }
     });
     return has ? sum : null;
+  }
+  return null;
+}
+
+function getResultAverageDurationNs(result, test) {
+  const total = getResultDurationNs(result);
+  if (!Number.isFinite(total) || total <= 0) {
+    return null;
+  }
+  const repeats = Number(test?.repeatCount);
+  if (Number.isFinite(repeats) && repeats > 0) {
+    return total / repeats;
+  }
+  const runs = Number(test?.runCount);
+  if (Number.isFinite(runs) && runs > 0) {
+    return total / runs;
+  }
+  return total;
+}
+
+function getResultAverageTokensPerSecond(result) {
+  if (!result) {
+    return null;
+  }
+  if (Number.isFinite(result.avgEvalTokensPerSecond) && result.avgEvalTokensPerSecond > 0) {
+    return result.avgEvalTokensPerSecond;
+  }
+  if (Number.isFinite(result.evalTokensPerSecond) && result.evalTokensPerSecond > 0) {
+    return result.evalTokensPerSecond;
   }
   return null;
 }
@@ -1210,5 +1624,11 @@ async function persistResult(modelName, test, result) {
     }
   } catch (error) {
     console.warn("Failed to persist result", error);
+    showToast(`Failed to persist result (${modelName} / ${test?.name}): ${String(error?.message || error)}`, {
+      variant: "error",
+      dedupeKey: `persist:${modelName}:${test?.id}:${String(error?.message || error)}`,
+    });
   }
 }
+
+init();
