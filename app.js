@@ -12,6 +12,7 @@ const tests = [
   createMultiPromptTest({
     id: "simple-addition",
     name: "Simple Addition",
+    shortName: "simp add",
     cases: [
       { id: "1+1", prompt: "Compute: 1 + 1. Respond only with the answer in digits.", expected: "2" },
       { id: "3+2", prompt: "Compute: 3 + 2. Respond only with the answer in digits.", expected: "5" },
@@ -23,6 +24,7 @@ const tests = [
   createMultiPromptTest({
     id: "advanced-addition",
     name: "Advanced Addition",
+    shortName: "adv add",
     cases: [
       {
         id: "12+7+5+9+3",
@@ -54,6 +56,7 @@ const tests = [
   createMultiPromptTest({
     id: "simple-subtraction",
     name: "Simple Subtraction",
+    shortName: "simp sub",
     cases: [
       { id: "2-1", prompt: "Compute: 2 - 1. Respond only with the answer in digits.", expected: "1" },
       { id: "5-2", prompt: "Compute: 5 - 2. Respond only with the answer in digits.", expected: "3" },
@@ -65,6 +68,7 @@ const tests = [
   createMultiPromptTest({
     id: "advanced-subtraction",
     name: "Advanced Subtraction",
+    shortName: "adv sub",
     cases: [
       {
         id: "100-7-5-9-3",
@@ -96,6 +100,7 @@ const tests = [
   createMultiPromptTest({
     id: "simple-multiplication",
     name: "Simple Multiplication",
+    shortName: "simp mul",
     cases: [
       { id: "1*4", prompt: "Compute: 1 * 4. Respond only with the answer in digits.", expected: "4" },
       { id: "2*8", prompt: "Compute: 2 * 8. Respond only with the answer in digits.", expected: "16" },
@@ -107,6 +112,7 @@ const tests = [
   createMultiPromptTest({
     id: "advanced-multiplication",
     name: "Advanced Multiplication",
+    shortName: "adv mul",
     cases: [
       {
         id: "2*3*4*5*6",
@@ -138,6 +144,7 @@ const tests = [
   createMultiPromptTest({
     id: "simple-division",
     name: "Simple Division",
+    shortName: "simp div",
     cases: [
       { id: "3/1", prompt: "Compute: 3 / 1. Respond only with the answer in digits.", expected: "3" },
       { id: "7/7", prompt: "Compute: 7 / 7. Respond only with the answer in digits.", expected: "1" },
@@ -149,6 +156,7 @@ const tests = [
   createMultiPromptTest({
     id: "advanced-division",
     name: "Advanced Division",
+    shortName: "adv div",
     cases: [
       {
         id: "7200/3/5/6/8",
@@ -185,6 +193,7 @@ const tests = [
   createMultiPromptTest({
     id: "compound-addition",
     name: "Compound Addition",
+    shortName: "comp add",
     cases: [
       { id: "1+2+3", prompt: "Compute: 1 + 2 + 3. Respond only with the answer in digits.", expected: "6" },
       { id: "17+31+6", prompt: "Compute: 17 + 31 + 6. Respond only with the answer in digits.", expected: "54" },
@@ -196,6 +205,7 @@ const tests = [
   createMultiPromptTest({
     id: "compound-subtraction",
     name: "Compound Subtraction",
+    shortName: "comp sub",
     cases: [
       { id: "3-2-1", prompt: "Compute: 3 - 2 - 1. Respond only with the answer in digits.", expected: "0" },
       { id: "3-(2-1)", prompt: "Compute: 3 - (2 - 1). Respond only with the answer in digits.", expected: "2" },
@@ -207,6 +217,7 @@ const tests = [
   createMultiPromptTest({
     id: "compound-multiplication",
     name: "Compound Multiplication",
+    shortName: "comp mul",
     cases: [
       { id: "5*5*5", prompt: "Compute: 5 * 5 * 5. Respond only with the answer in digits.", expected: "125" },
       { id: "3*9*7", prompt: "Compute: 3 * 9 * 7. Respond only with the answer in digits.", expected: "189" },
@@ -218,6 +229,7 @@ const tests = [
   createMultiPromptTest({
     id: "compound-division",
     name: "Compound Division",
+    shortName: "comp div",
     cases: [
       {
         id: "9/3/3",
@@ -254,6 +266,7 @@ const tests = [
   createMultiPromptTest({
     id: "bmdas-assisted",
     name: "BMDAS Assisted",
+    shortName: "bmdas asst",
     cases: [
       {
         id: "6+2*(5-3)",
@@ -290,6 +303,7 @@ const tests = [
   createMultiPromptTest({
     id: "bmdas-mixed",
     name: "BMDAS Mixed",
+    shortName: "bmdas mix",
     cases: [
       {
         id: "6+2*(5-3)",
@@ -690,11 +704,12 @@ function saveUiStateToStorage() {
   }
 }
 
-function createMultiPromptTest({ id, name, cases }) {
+function createMultiPromptTest({ id, name, shortName, cases }) {
   const maxScore = cases.length * 2 * RUNS_PER_TEST;
   return {
     id,
     name,
+    shortName,
     minScore: 0,
     maxScore,
     caseCount: cases.length,
@@ -789,10 +804,11 @@ function createMultiPromptTest({ id, name, cases }) {
   };
 }
 
-function createNumericTest({ id, name, prompt, expected, tolerance, maxScore }) {
+function createNumericTest({ id, name, shortName, prompt, expected, tolerance, maxScore }) {
   return {
     id,
     name,
+    shortName,
     prompt,
     minScore: 0,
     maxScore,
@@ -1229,7 +1245,7 @@ function renderTable() {
   const headerRow = document.createElement("tr");
   headerRow.appendChild(createHeaderCell("Model"));
   tests.forEach((test) => {
-    headerRow.appendChild(createHeaderCell(test.name));
+    headerRow.appendChild(createHeaderCell(test.shortName || test.name));
   });
   headerRow.appendChild(createHeaderCell("Average"));
   thead.appendChild(headerRow);
@@ -1694,7 +1710,7 @@ async function persistResult(modelName, test, result) {
     timestamp: aggregateTimestamp,
     model: modelName,
     test_id: test.id,
-    test_name: test.name,
+    test_name: test.shortName || test.name,
     case_id: "",
     case_prompt: "",
     expected: "",
@@ -1718,7 +1734,7 @@ async function persistResult(modelName, test, result) {
         timestamp: caseResult.completedAt || aggregateTimestamp,
         model: modelName,
         test_id: test.id,
-        test_name: test.name,
+        test_name: test.shortName || test.name,
         case_id: caseResult.caseId ?? "",
         case_prompt: caseResult.prompt ?? "",
         expected: caseResult.expected ?? "",
