@@ -21,6 +21,37 @@ const tests = [
     ],
   }),
   createMultiPromptTest({
+    id: "advanced-addition",
+    name: "Advanced Addition",
+    cases: [
+      {
+        id: "12+7+5+9+3",
+        prompt: "Compute: 12 + 7 + 5 + 9 + 3. Respond only with the answer in digits.",
+        expected: "36",
+      },
+      {
+        id: "58+17+26+39+14",
+        prompt: "Compute: 58 + 17 + 26 + 39 + 14. Respond only with the answer in digits.",
+        expected: "154",
+      },
+      {
+        id: "104+305+694+88+17+56",
+        prompt: "Compute: 104 + 305 + 694 + 88 + 17 + 56. Respond only with the answer in digits.",
+        expected: "1264",
+      },
+      {
+        id: "638+837+921+145+302+49",
+        prompt: "Compute: 638 + 837 + 921 + 145 + 302 + 49. Respond only with the answer in digits.",
+        expected: "2892",
+      },
+      {
+        id: "1205+9876+4321+555+678+90",
+        prompt: "Compute: 1205 + 9876 + 4321 + 555 + 678 + 90. Respond only with the answer in digits.",
+        expected: "16725",
+      },
+    ],
+  }),
+  createMultiPromptTest({
     id: "simple-subtraction",
     name: "Simple Subtraction",
     cases: [
