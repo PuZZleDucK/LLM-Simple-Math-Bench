@@ -3,8 +3,8 @@ const RESULTS_ENDPOINT = "/api/results";
 const RAW_RESULTS_ENDPOINT = "/api/results.csv";
 const CLEAR_RESULTS_ENDPOINT = "/api/clear";
 const UI_STATE_KEY = "ollama-bench-ui-v1";
-const DEFAULT_NUM_PREDICT = 30000;
-const RUNS_PER_TEST = 5;
+const DEFAULT_NUM_PREDICT = 10000;
+const RUNS_PER_TEST = 3;
 const TOAST_TTL_MS = 8000;
 const TOAST_MAX_VISIBLE = 4;
 
@@ -1434,6 +1434,37 @@ function createHeaderCell(text) {
   return cell;
 }
 
+function compareMaybe(a, b) {
+  if (a === null && b === null) {
+    return 0;
+  }
+  if (a === null) {
+    return 1;
+  }
+  if (b === null) {
+    return -1;
+  }
+  if (a < b) {
+    return -1;
+  }
+  if (a > b) {
+    return 1;
+  }
+  return 0;
+}
+
+function compareModelsForRun(a, b) {
+  const byBytes = compareMaybe(a?.sizeBytes ?? null, b?.sizeBytes ?? null);
+  if (byBytes !== 0) {
+    return byBytes;
+  }
+  const byParams = compareMaybe(a?.sizeB ?? null, b?.sizeB ?? null);
+  if (byParams !== 0) {
+    return byParams;
+  }
+  return String(a?.name || "").localeCompare(String(b?.name || ""));
+}
+
 async function runUnrunBenchmarks() {
   if (state.running || state.filteredModels.length === 0) {
     return;
@@ -1443,10 +1474,11 @@ async function runUnrunBenchmarks() {
   toggleButtons(true);
 
   try {
-	    for (const model of state.filteredModels) {
-	      if (state.excludedModels.has(model.name)) {
-	        continue;
-	      }
+		    const modelsToRun = [...state.filteredModels].sort(compareModelsForRun);
+		    for (const model of modelsToRun) {
+		      if (state.excludedModels.has(model.name)) {
+		        continue;
+		      }
 	      let runtimeCaptured = Boolean(state.runtimeInfo[model.name]);
 	      const modelResults = state.results[model.name] || {};
 	      for (const test of tests) {
