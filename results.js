@@ -107,6 +107,21 @@ function render() {
 
 let chartResizeListenerBound = false;
 
+function getCanvasCssWidth(canvas) {
+  const rect = canvas.getBoundingClientRect();
+  if (rect.width && rect.width > 0) {
+    return rect.width;
+  }
+  const parent = canvas.parentElement;
+  if (parent) {
+    const parentRect = parent.getBoundingClientRect();
+    if (parentRect.width && parentRect.width > 0) {
+      return parentRect.width;
+    }
+  }
+  return canvas.clientWidth || 0;
+}
+
 function renderProgressChart() {
   const canvas = elements.progressChart;
   if (!canvas) {
@@ -125,9 +140,9 @@ function renderProgressChart() {
     return;
   }
 
-  const rect = canvas.getBoundingClientRect();
-  const width = rect.width || canvas.clientWidth || 0;
-  const height = Math.max(240, Math.min(380, Math.round(((rect.width || canvas.clientWidth || 720) * 0.25))));
+  canvas.style.width = "100%";
+  const width = getCanvasCssWidth(canvas);
+  const height = Math.max(240, Math.min(380, Math.round(((width || 720) * 0.25))));
   const dpr = window.devicePixelRatio || 1;
   canvas.width = Math.round(width * dpr);
   canvas.height = Math.round(height * dpr);
@@ -202,7 +217,7 @@ function drawChartMessage(ctx, width, height, message) {
 
 function drawChartGrid(ctx, { width, height, padding, plotW, plotH, testCount, maxTotal, xForIndex, yForScore }) {
   ctx.save();
-  ctx.strokeStyle = "rgba(38, 45, 58, 1)";
+  ctx.strokeStyle = "rgba(164, 169, 183, 0.22)";
   ctx.lineWidth = 1;
 
   // Outer bounds
@@ -226,7 +241,7 @@ function drawChartGrid(ctx, { width, height, padding, plotW, plotH, testCount, m
   }
 
   // Vertical grid (tests)
-  ctx.strokeStyle = "rgba(38, 45, 58, 0.6)";
+  ctx.strokeStyle = "rgba(164, 169, 183, 0.12)";
   for (let i = 0; i < testCount; i += 1) {
     const x = xForIndex(i);
     ctx.beginPath();
