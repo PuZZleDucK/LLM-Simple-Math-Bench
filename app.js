@@ -3,7 +3,7 @@ const RESULTS_ENDPOINT = "/api/results";
 const RAW_RESULTS_ENDPOINT = "/api/results.csv";
 const CLEAR_RESULTS_ENDPOINT = "/api/clear";
 const UI_STATE_KEY = "ollama-bench-ui-v1";
-const DEFAULT_NUM_PREDICT = 300000;
+const DEFAULT_NUM_PREDICT = 30000;
 const RUNS_PER_TEST = 5;
 const TOAST_TTL_MS = 8000;
 const TOAST_MAX_VISIBLE = 4;
@@ -1543,13 +1543,13 @@ function formatResultTooltip(result, test) {
       ? "✅"
       : "❌";
   if (result.error) {
-    lines.push(`❌ Error: ${result.error}`);
+    lines.push(`⚠️ Error: ${result.error}`);
   }
   if (Array.isArray(result.caseResults) && result.caseResults.length > 0) {
     result.caseResults.forEach((caseResult) => {
       const label = caseResult.caseId || test?.name || "case";
       if (caseResult.error) {
-        lines.push(`❌ ${label}: error: ${caseResult.error}`);
+        lines.push(`⚠️ ${label}: error: ${caseResult.error}`);
       } else if (caseResult.output) {
         const prefix = prefixForScore(caseResult.score, caseResult.maxScore);
         lines.push(`${prefix} ${label}: ${caseResult.output}`);
