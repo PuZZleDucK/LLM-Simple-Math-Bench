@@ -45,24 +45,66 @@ server = WEBrick::HTTPServer.new(
   Logger: WEBrick::Log.new($stderr, WEBrick::Log::INFO)
 )
 
-def ensure_results_file
-  unless File.exist?(RESULTS_FILE) && File.size?(RESULTS_FILE)
-    CSV.open(RESULTS_FILE, "w") { |csv| csv << HEADERS }
+def sanitize_results_filename(filename)
+  return nil if filename.nil?
+
+  name = filename.to_s.strip
+  return nil if name.empty?
+
+  name = File.basename(name)
+  return nil unless name.match?(/\Aresults(?:-[a-z0-9][a-z0-9._-]*)?\.csv\z/i)
+
+  name
+end
+
+def slugify_run_name(name)
+  text = name.to_s.downcase.strip
+  return nil if text.empty?
+
+  slug = text.gsub(/[^a-z0-9]+/, "-").gsub(/^-+|-+$/, "")
+  return nil if slug.empty?
+
+  slug[0, 64]
+end
+
+def resolve_results_path(req, payload = nil)
+  file_param = sanitize_results_filename(req.query["file"])
+  run_param = req.query["run"]
+  payload_run = payload && payload["runName"]
+
+  filename =
+    if file_param
+      file_param
+    elsif run_param
+      slug = slugify_run_name(run_param)
+      slug ? "results-#{slug}.csv" : nil
+    elsif payload_run
+      slug = slugify_run_name(payload_run)
+      slug ? "results-#{slug}.csv" : nil
+    end
+
+  filename ||= "results.csv"
+  File.join(DATA_DIR, filename)
+end
+
+def ensure_results_file(path)
+  unless File.exist?(path) && File.size?(path)
+    CSV.open(path, "w") { |csv| csv << HEADERS }
     return
   end
 
-  existing_headers = CSV.open(RESULTS_FILE, "r", &:shift)
+  existing_headers = CSV.open(path, "r", &:shift)
   return if existing_headers == HEADERS
 
-  tmp_path = "#{RESULTS_FILE}.tmp"
+  tmp_path = "#{path}.tmp"
   CSV.open(tmp_path, "w") do |csv|
     csv << HEADERS
-    CSV.foreach(RESULTS_FILE, headers: true) do |row|
+    CSV.foreach(path, headers: true) do |row|
       csv << HEADERS.map { |header| row[header] || "" }
     end
   end
 
-  FileUtils.mv(tmp_path, RESULTS_FILE)
+  FileUtils.mv(tmp_path, path)
 end
 
 def number_or_nil(value)
@@ -99,13 +141,13 @@ def normalized_row(row)
   }
 end
 
-def latest_results
+def latest_results(path)
   results = {}
   last_updated = nil
 
-  return [results, last_updated] unless File.exist?(RESULTS_FILE) && File.size?(RESULTS_FILE)
+  return [results, last_updated] unless File.exist?(path) && File.size?(path)
 
-  CSV.foreach(RESULTS_FILE, headers: true) do |row|
+  CSV.foreach(path, headers: true) do |row|
     model = row["model"].to_s
     test_id = row["test_id"].to_s
     case_id = row["case_id"].to_s
@@ -130,10 +172,20 @@ def latest_results
   [results, last_updated]
 end
 
+server.mount_proc "/api/results-files" do |_req, res|
+  files = Dir.glob(File.join(DATA_DIR, "results*.csv"))
+    .map { |path| File.basename(path) }
+    .sort
+  res.status = 200
+  res["Content-Type"] = "application/json"
+  res.body = JSON.generate({ files: files })
+end
+
 server.mount_proc "/api/results" do |req, res|
   case req.request_method
   when "GET"
-    results, last_updated = latest_results
+    results_path = resolve_results_path(req)
+    results, last_updated = latest_results(results_path)
     res.status = 200
     res["Content-Type"] = "application/json"
     res.body = JSON.pretty_generate(
@@ -151,8 +203,9 @@ server.mount_proc "/api/results" do |req, res|
     end
 
     if entries.any?
-      ensure_results_file
-      CSV.open(RESULTS_FILE, "ab") do |csv|
+      results_path = resolve_results_path(req, payload)
+      ensure_results_file(results_path)
+      CSV.open(results_path, "ab") do |csv|
         entries.each do |entry|
           row = HEADERS.map do |header|
             value = entry[header] || entry[header.to_sym]
@@ -181,7 +234,8 @@ server.mount_proc "/api/clear" do |req, res|
     next
   end
 
-  File.delete(RESULTS_FILE) if File.exist?(RESULTS_FILE)
+  results_path = resolve_results_path(req)
+  File.delete(results_path) if File.exist?(results_path)
   res.status = 200
   res["Content-Type"] = "application/json"
   res.body = JSON.generate({ ok: true })
@@ -190,8 +244,9 @@ end
 server.mount_proc "/api/results.csv" do |_req, res|
   res.status = 200
   res["Content-Type"] = "text/csv"
-  if File.exist?(RESULTS_FILE) && File.size?(RESULTS_FILE)
-    res.body = File.read(RESULTS_FILE)
+  results_path = resolve_results_path(_req)
+  if File.exist?(results_path) && File.size?(results_path)
+    res.body = File.read(results_path)
   else
     res.body = CSV.generate { |csv| csv << HEADERS }
   end

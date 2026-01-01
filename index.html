@@ -16,16 +16,28 @@
     <div class="bg-glow"></div>
     <div class="page">
       <header class="site-header">
-        <div class="header-top">
-          <div class="title-block">
+        <nav class="navbar">
+          <div class="nav-brand title-block">
             <p class="kicker">Ollama Benchmarks</p>
             <h1>Published Results</h1>
             <p class="subtitle">
               Latest benchmark totals pulled from the published CSV feed.
             </p>
           </div>
-          <div class="status-pill" id="statusPill">Loading</div>
-        </div>
+          <div class="nav-actions">
+            <div class="nav-links">
+              <a class="nav-link" href="settings.html">Settings</a>
+              <a class="nav-link" href="run.html">Run</a>
+              <details class="nav-dropdown" data-results-dropdown>
+                <summary class="nav-link" aria-current="page">Results</summary>
+                <div class="nav-menu">
+                  <a class="nav-menu__item" href="index.html" aria-current="page">Latest</a>
+                </div>
+              </details>
+            </div>
+            <div class="status-pill" id="statusPill">Loading</div>
+          </div>
+        </nav>
         <div class="header-grid">
           <section class="card" aria-labelledby="summary-title">
             <div class="card-title" id="summary-title">Summary</div>
@@ -48,8 +60,10 @@
           <section class="card" aria-labelledby="links-title">
             <div class="card-title" id="links-title">Actions</div>
             <a class="link-pill" href="run.html">Run Benchmarks</a>
-            <a class="link-pill" href="data/results.csv" download>Download CSV</a>
-            <div class="hint">Ensure `data/results.csv` is published.</div>
+            <a class="link-pill" id="downloadCsvLink" href="data/results.csv" download="results.csv">
+              Download CSV
+            </a>
+            <div class="hint" id="downloadHint">Ensure `data/results.csv` is published.</div>
           </section>
         </div>
       </header>
@@ -81,6 +95,7 @@
         </section>
       </main>
     </div>
+    <script src="nav.js"></script>
     <script src="results.js"></script>
   </body>
 </html>

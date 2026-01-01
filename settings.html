@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Ollama Benchmarks - Settings</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Space+Grotesk:wght@400;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="bg-glow"></div>
+    <div class="page">
+      <header class="site-header">
+        <nav class="navbar">
+          <div class="nav-brand title-block">
+            <p class="kicker">Ollama Benchmarks</p>
+            <h1>Settings</h1>
+            <p class="subtitle">
+              Tune inference defaults and model filters used when selecting models to run.
+            </p>
+          </div>
+          <div class="nav-actions">
+            <div class="nav-links">
+              <a class="nav-link" href="settings.html" aria-current="page">Settings</a>
+              <a class="nav-link" href="run.html">Run</a>
+              <details class="nav-dropdown" data-results-dropdown>
+                <summary class="nav-link">Results</summary>
+                <div class="nav-menu">
+                  <a class="nav-menu__item" href="index.html">Latest</a>
+                </div>
+              </details>
+            </div>
+          </div>
+        </nav>
+      </header>
+      <main class="main settings-main">
+        <div class="settings-grid">
+          <section class="card" aria-labelledby="inference-title">
+            <div class="card-title" id="inference-title">Inference</div>
+            <div class="field">
+              <label for="ollamaHostInput">Ollama host</label>
+              <input
+                id="ollamaHostInput"
+                type="text"
+                placeholder="http://127.0.0.1"
+                spellcheck="false"
+              />
+            </div>
+            <div class="field-row">
+              <div class="field">
+                <label for="ollamaPortInput">Port</label>
+                <input id="ollamaPortInput" type="number" min="1" step="1" />
+              </div>
+              <div class="field">
+                <label for="numPredictInput">Default num_predict</label>
+                <input id="numPredictInput" type="number" min="1" step="1" />
+              </div>
+            </div>
+            <div class="hint">
+              Used for Ollama API requests and fallback inference limits.
+            </div>
+            <div class="hint">
+              Models available: <span class="cell-mono" id="ollamaModelCount">—</span>
+            </div>
+          </section>
+          <section class="card" aria-labelledby="run-title">
+            <div class="card-title" id="run-title">Test Run</div>
+            <div class="field">
+              <label for="runNameInput">Run name</label>
+              <input
+                id="runNameInput"
+                type="text"
+                placeholder="e.g. Smoke test - Jan"
+                spellcheck="false"
+              />
+            </div>
+            <div class="field">
+              <label for="runsPerTestInput">Runs per test</label>
+              <input id="runsPerTestInput" type="number" min="1" step="1" />
+            </div>
+            <div class="hint">
+              Total test count per model:
+              <span class="cell-mono" id="totalTestCount">—</span>
+            </div>
+          </section>
+          <section class="card" aria-labelledby="filters-title">
+            <div class="card-title" id="filters-title">Model Filters</div>
+            <div class="field">
+              <label for="regexInput">Model name regex</label>
+              <input
+                id="regexInput"
+                type="text"
+                placeholder=".*"
+                spellcheck="false"
+              />
+            </div>
+            <div class="field-row">
+              <div class="field">
+                <label for="minSizeInput">Min size (B)</label>
+                <input id="minSizeInput" type="number" min="0" step="0.1" />
+              </div>
+              <div class="field">
+                <label for="maxSizeInput">Max size (B)</label>
+                <input id="maxSizeInput" type="number" min="0" step="0.1" />
+              </div>
+            </div>
+            <div class="hint" id="regexHint">
+              Filters use parameter size when available.
+            </div>
+            <div class="hint">
+              Matching models: <span class="cell-mono" id="filteredModelCount">—</span>
+            </div>
+          </section>
+        </div>
+      </main>
+    </div>
+    <script src="nav.js"></script>
+    <script src="settings.js"></script>
+  </body>
+</html>

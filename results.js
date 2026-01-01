@@ -1,4 +1,47 @@
-const CSV_URL = "data/results.csv";
+const DEFAULT_RESULTS_FILE = "results.csv";
+
+function sanitizeResultsFilename(filename) {
+  if (!filename) {
+    return null;
+  }
+  const name = String(filename).trim();
+  if (!name) {
+    return null;
+  }
+  const base = name.split(/[\\/]/).pop();
+  if (!/^results(?:-[a-z0-9][a-z0-9._-]*)?\.csv$/i.test(base)) {
+    return null;
+  }
+  return base;
+}
+
+function resolveResultsFileFromUrl() {
+  const params = new URLSearchParams(window.location.search);
+  return sanitizeResultsFilename(params.get("file")) || DEFAULT_RESULTS_FILE;
+}
+
+function resolveBaseUrl() {
+  const url = new URL(window.location.href);
+  const path = url.pathname;
+  const hasExtension = /\.[a-z0-9]+$/i.test(path);
+  if (path.endsWith("/")) {
+    // Keep directory path as-is.
+  } else if (hasExtension) {
+    url.pathname = path.replace(/[^/]*$/, "");
+  } else {
+    url.pathname = `${path}/`;
+  }
+  url.search = "";
+  url.hash = "";
+  return url;
+}
+
+const RESULTS_FILE = resolveResultsFileFromUrl();
+const BASE_URL = resolveBaseUrl();
+const STATIC_CSV_URL = new URL(`data/${RESULTS_FILE}`, BASE_URL).toString();
+const apiUrl = new URL("api/results.csv", BASE_URL);
+apiUrl.searchParams.set("file", RESULTS_FILE);
+const API_CSV_URL = apiUrl.toString();
 
 const state = {
   rows: [],
@@ -10,6 +53,8 @@ const state = {
   status: "Loading",
   lastUpdated: null,
   error: null,
+  resultsFile: RESULTS_FILE,
+  csvUrl: STATIC_CSV_URL,
 };
 
 const elements = {
@@ -21,11 +66,14 @@ const elements = {
   progressChart: document.getElementById("progressChart"),
   resultsTable: document.getElementById("resultsTable"),
   tableHint: document.getElementById("tableHint"),
+  downloadCsvLink: document.getElementById("downloadCsvLink"),
+  downloadHint: document.getElementById("downloadHint"),
 };
 
 init();
 
 async function init() {
+  updateDownloadLink();
   try {
     await loadCsv();
     state.status = "Ready";
@@ -36,12 +84,51 @@ async function init() {
   render();
 }
 
-async function loadCsv() {
-  const response = await fetch(CSV_URL, { cache: "no-store" });
-  if (!response.ok) {
-    throw new Error(`Failed to load ${CSV_URL}`);
+function updateDownloadLink() {
+  if (!elements.downloadCsvLink) {
+    return;
   }
-  const text = await response.text();
+  elements.downloadCsvLink.href = state.csvUrl;
+  elements.downloadCsvLink.download = RESULTS_FILE;
+  if (elements.downloadHint) {
+    if (state.csvUrl.startsWith("/api/")) {
+      elements.downloadHint.textContent = "Ensure the API results endpoint is available.";
+    } else {
+      elements.downloadHint.textContent = `Ensure \`data/${RESULTS_FILE}\` is published.`;
+    }
+  }
+}
+
+async function loadCsv() {
+  const text = await fetchCsvText(STATIC_CSV_URL);
+  if (text === null) {
+    const apiText = await fetchCsvText(API_CSV_URL);
+    if (apiText === null) {
+      throw new Error(`Failed to load ${RESULTS_FILE}`);
+    }
+    state.csvUrl = API_CSV_URL;
+    updateDownloadLink();
+    parseCsvText(apiText);
+    return;
+  }
+  state.csvUrl = STATIC_CSV_URL;
+  updateDownloadLink();
+  parseCsvText(text);
+}
+
+async function fetchCsvText(url) {
+  try {
+    const response = await fetch(url, { cache: "no-store" });
+    if (!response.ok) {
+      return null;
+    }
+    return await response.text();
+  } catch {
+    return null;
+  }
+}
+
+function parseCsvText(text) {
   const rows = parseCsv(text);
   if (rows.length === 0) {
     return;

@@ -16,17 +16,31 @@
     <div class="bg-glow"></div>
     <div class="page">
       <header class="site-header">
-        <div class="header-top">
-          <div class="title-block">
+        <nav class="navbar">
+          <div class="nav-brand title-block">
             <p class="kicker">Ollama Benchmarks</p>
             <h1>Math Model Performance Dashboard</h1>
             <p class="subtitle">
               Run a growing suite of tests across selected models and compare
               results side by side.
             </p>
+            <p class="run-name">
+              Run name: <span class="cell-mono" id="runNameDisplay">—</span>
+            </p>
           </div>
-          <div class="status-pill" id="statusPill">Idle</div>
-        </div>
+          <div class="nav-actions">
+            <div class="nav-links">
+              <a class="nav-link" href="settings.html">Settings</a>
+              <a class="nav-link" href="run.html" aria-current="page">Run</a>
+              <details class="nav-dropdown" data-results-dropdown>
+                <summary class="nav-link">Results</summary>
+                <div class="nav-menu">
+                  <a class="nav-menu__item" href="index.html">Latest</a>
+                </div>
+              </details>
+            </div>
+          </div>
+        </nav>
         <div class="header-grid">
           <section class="card" aria-labelledby="controls-title">
             <div class="card-title" id="controls-title">Controls</div>
@@ -36,32 +50,7 @@
               <button id="exportBtn" class="ghost">Export CSV</button>
             </div>
             <div class="hint" id="runHint">
-              Runs missing (or outdated) tests for the currently selected models. Each test repeats 5× (score out of 50), and cells show avg time + avg tok/s.
-            </div>
-          </section>
-          <section class="card" aria-labelledby="settings-title">
-            <div class="card-title" id="settings-title">Settings</div>
-            <div class="field">
-              <label for="regexInput">Model name regex</label>
-              <input
-                id="regexInput"
-                type="text"
-                placeholder=".*"
-                spellcheck="false"
-              />
-            </div>
-            <div class="field-row">
-              <div class="field">
-                <label for="minSizeInput">Min size (B)</label>
-                <input id="minSizeInput" type="number" min="0" step="0.1" />
-              </div>
-              <div class="field">
-                <label for="maxSizeInput">Max size (B)</label>
-                <input id="maxSizeInput" type="number" min="0" step="0.1" />
-              </div>
-            </div>
-            <div class="hint" id="regexHint">
-              Filters use parameter size when available.
+              Runs missing (or outdated) tests for the currently selected models. Each test repeats per the settings, and cells show avg time + avg tok/s.
             </div>
           </section>
           <section class="card" aria-labelledby="summary-title">
@@ -102,6 +91,7 @@
         </section>
       </main>
     </div>
+    <script src="nav.js"></script>
     <script src="app.js"></script>
   </body>
 </html>
