@@ -43,5 +43,7 @@ After the first completed test for a model, the UI queries Ollama for runtime in
 
 ## Results Storage & Publishing
 
-- Live runs are stored via `POST /api/results` and written to `data/results.csv`.
-- GitHub Pages publishes `index.html`, `run.html`, and `data/results.csv` on pushes to `main` (see `.github/workflows/deploy-pages.yml`).
+- Live runs are stored via `POST /api/results` and written to `data/results.csv` (default) or `data/results-<name>.csv` (when a run name is set).
+- GitHub Pages is static, so the Results dropdown reads `data/results-files.json` to list available result files (the API is not available there).
+- Update `data/results-files.json` whenever you add new `data/results-*.csv` files. The dropdown intentionally omits a "Latest" entry.
+- GitHub Pages publishes `index.html`, `run.html`, and `data/*.csv` on pushes to `main` (see `.github/workflows/deploy-pages.yml`).

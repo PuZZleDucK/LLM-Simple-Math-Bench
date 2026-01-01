@@ -272,6 +272,13 @@ body {
   box-shadow: 0 0 0 1px rgba(240, 109, 60, 0.25);
 }
 
+.nav-menu__empty {
+  display: block;
+  padding: 8px 12px;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
 .nav-link:hover {
   border-color: var(--accent-2);
   transform: translateY(-1px);

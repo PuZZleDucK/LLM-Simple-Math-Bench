@@ -38,10 +38,20 @@ function resolveBaseUrl() {
 
 const RESULTS_FILE = resolveResultsFileFromUrl();
 const BASE_URL = resolveBaseUrl();
-const STATIC_CSV_URL = new URL(`data/${RESULTS_FILE}`, BASE_URL).toString();
-const apiUrl = new URL("api/results.csv", BASE_URL);
-apiUrl.searchParams.set("file", RESULTS_FILE);
-const API_CSV_URL = apiUrl.toString();
+const RESULTS_MANIFEST_URL = new URL("data/results-files.json", BASE_URL).toString();
+
+function buildStaticCsvUrl(fileName) {
+  return new URL(`data/${fileName}`, BASE_URL).toString();
+}
+
+function buildApiCsvUrl(fileName) {
+  const apiUrl = new URL("api/results.csv", BASE_URL);
+  apiUrl.searchParams.set("file", fileName);
+  return apiUrl.toString();
+}
+
+const STATIC_CSV_URL = buildStaticCsvUrl(RESULTS_FILE);
+const API_CSV_URL = buildApiCsvUrl(RESULTS_FILE);
 
 const state = {
   rows: [],
@@ -89,7 +99,7 @@ function updateDownloadLink() {
     return;
   }
   elements.downloadCsvLink.href = state.csvUrl;
-  elements.downloadCsvLink.download = RESULTS_FILE;
+  elements.downloadCsvLink.download = state.resultsFile;
   if (elements.downloadHint) {
     if (state.csvUrl.startsWith("/api/")) {
       elements.downloadHint.textContent = "Ensure the API results endpoint is available.";
@@ -100,18 +110,32 @@ function updateDownloadLink() {
 }
 
 async function loadCsv() {
-  const text = await fetchCsvText(STATIC_CSV_URL);
+  let fileName = state.resultsFile;
+  let staticUrl = buildStaticCsvUrl(fileName);
+  let text = await fetchCsvText(staticUrl);
   if (text === null) {
-    const apiText = await fetchCsvText(API_CSV_URL);
-    if (apiText === null) {
-      throw new Error(`Failed to load ${RESULTS_FILE}`);
+    if (fileName === DEFAULT_RESULTS_FILE) {
+      const manifestFiles = await loadResultsManifest();
+      if (manifestFiles.length > 0) {
+        fileName = manifestFiles[0];
+        state.resultsFile = fileName;
+        staticUrl = buildStaticCsvUrl(fileName);
+        text = await fetchCsvText(staticUrl);
+      }
     }
-    state.csvUrl = API_CSV_URL;
+  }
+
+  if (text === null) {
+    const apiText = await fetchCsvText(buildApiCsvUrl(fileName));
+    if (apiText === null) {
+      throw new Error(`Failed to load ${fileName}`);
+    }
+    state.csvUrl = buildApiCsvUrl(fileName);
     updateDownloadLink();
     parseCsvText(apiText);
     return;
   }
-  state.csvUrl = STATIC_CSV_URL;
+  state.csvUrl = staticUrl;
   updateDownloadLink();
   parseCsvText(text);
 }
@@ -125,6 +149,24 @@ async function fetchCsvText(url) {
     return await response.text();
   } catch {
     return null;
+  }
+}
+
+async function loadResultsManifest() {
+  try {
+    const response = await fetch(RESULTS_MANIFEST_URL, { cache: "no-store" });
+    if (!response.ok) {
+      return [];
+    }
+    const data = await response.json();
+    if (!data || !Array.isArray(data.files)) {
+      return [];
+    }
+    return data.files
+      .map((file) => sanitizeResultsFilename(file))
+      .filter((file) => file && file.toLowerCase() !== DEFAULT_RESULTS_FILE);
+  } catch {
+    return [];
   }
 }
 

@@ -2,6 +2,7 @@
   const DEFAULT_RESULTS_FILE = "results.csv";
   const BASE_URL = resolveBaseUrl();
   const RESULTS_FILES_ENDPOINT = new URL("api/results-files", BASE_URL).toString();
+  const RESULTS_MANIFEST_URL = new URL("data/results-files.json", BASE_URL).toString();
 
   function sanitizeResultsFilename(filename) {
     if (!filename) {
@@ -22,9 +23,6 @@
     if (!fileName) {
       return "Results";
     }
-    if (fileName.toLowerCase() === DEFAULT_RESULTS_FILE) {
-      return "Latest";
-    }
     const stripped = fileName.replace(/^results-?/i, "").replace(/\.csv$/i, "");
     const label = stripped.replace(/[-_]+/g, " ").trim();
     return label || fileName;
@@ -32,7 +30,7 @@
 
   function buildResultsHref(fileName) {
     const url = new URL("index.html", BASE_URL);
-    if (fileName && fileName.toLowerCase() !== DEFAULT_RESULTS_FILE) {
+    if (fileName) {
       url.searchParams.set("file", fileName);
     }
     return url.toString();
@@ -64,9 +62,26 @@
     return url;
   }
 
-  async function loadResultsFiles() {
+  function normalizeResultsFiles(files) {
+    const seen = new Set();
+    const normalized = [];
+    files.forEach((file) => {
+      const cleaned = sanitizeResultsFilename(file);
+      if (!cleaned || cleaned.toLowerCase() === DEFAULT_RESULTS_FILE) {
+        return;
+      }
+      if (seen.has(cleaned)) {
+        return;
+      }
+      seen.add(cleaned);
+      normalized.push(cleaned);
+    });
+    return normalized;
+  }
+
+  async function fetchResultsFiles(url) {
     try {
-      const response = await fetch(RESULTS_FILES_ENDPOINT, { cache: "no-store" });
+      const response = await fetch(url, { cache: "no-store" });
       if (!response.ok) {
         throw new Error("Failed to fetch results files");
       }
@@ -74,24 +89,26 @@
       if (!data || !Array.isArray(data.files)) {
         throw new Error("Invalid results files payload");
       }
-      const seen = new Set();
-      const files = [];
-      data.files.forEach((file) => {
-        const cleaned = sanitizeResultsFilename(file);
-        if (!cleaned || seen.has(cleaned)) {
-          return;
-        }
-        seen.add(cleaned);
-        files.push(cleaned);
-      });
-      if (files.length === 0) {
-        return [DEFAULT_RESULTS_FILE];
-      }
-      const ordered = [DEFAULT_RESULTS_FILE, ...files.filter((file) => file !== DEFAULT_RESULTS_FILE)];
-      return ordered;
+      return normalizeResultsFiles(data.files);
     } catch (error) {
-      return [DEFAULT_RESULTS_FILE];
+      return [];
     }
+  }
+
+  async function loadResultsFiles() {
+    const apiFiles = await fetchResultsFiles(RESULTS_FILES_ENDPOINT);
+    if (apiFiles.length > 0) {
+      return apiFiles;
+    }
+    const manifestFiles = await fetchResultsFiles(RESULTS_MANIFEST_URL);
+    return manifestFiles;
+  }
+
+  function renderEmptyMenu(menu) {
+    const empty = document.createElement("span");
+    empty.className = "nav-menu__empty";
+    empty.textContent = "No results available";
+    menu.appendChild(empty);
   }
 
   function renderResultsMenu(dropdown, files) {
@@ -102,6 +119,11 @@
 
     const onResultsPage = isResultsPage();
     const activeFile = currentResultsFile();
+
+    if (!files.length) {
+      renderEmptyMenu(menu);
+      return;
+    }
 
     files.forEach((file) => {
       const link = document.createElement("a");
