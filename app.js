@@ -1772,7 +1772,7 @@ function renderTable() {
 	        if (Number.isFinite(avgTokensPerSecond) && avgTokensPerSecond > 0) {
 	          const tps = document.createElement("div");
 	          tps.className = "time-sub";
-	          tps.textContent = `${avgTokensPerSecond.toFixed(1)} t/s`;
+	          tps.textContent = `${avgTokensPerSecond.toFixed(0)} t/s`;
 	          scoreWrap.appendChild(tps);
 	        }
 	        const tooltip = formatResultTooltip(result, test);
