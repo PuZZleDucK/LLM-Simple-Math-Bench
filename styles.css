@@ -458,6 +458,17 @@ input.invalid {
   font-family: var(--mono);
 }
 
+.observations-list {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  color: var(--ink);
+}
+
+.observations-list li {
+  margin-bottom: 6px;
+  line-height: 1.4;
+}
+
 .main {
   margin-top: 32px;
 }

@@ -65,8 +65,10 @@
   function normalizeResultsFiles(files) {
     const seen = new Set();
     const normalized = [];
-    files.forEach((file) => {
-      const cleaned = sanitizeResultsFilename(file);
+    files.forEach((entry) => {
+      const fileName =
+        typeof entry === "string" ? entry : entry?.file ? String(entry.file) : "";
+      const cleaned = sanitizeResultsFilename(fileName);
       if (!cleaned || cleaned.toLowerCase() === DEFAULT_RESULTS_FILE) {
         return;
       }

@@ -65,6 +65,9 @@ const state = {
   error: null,
   resultsFile: RESULTS_FILE,
   csvUrl: STATIC_CSV_URL,
+  manifestFiles: [],
+  observationsByFile: {},
+  manifestLoaded: false,
 };
 
 const elements = {
@@ -84,12 +87,15 @@ const elements = {
   tableHint: document.getElementById("tableHint"),
   downloadCsvLink: document.getElementById("downloadCsvLink"),
   downloadHint: document.getElementById("downloadHint"),
+  observationsList: document.getElementById("observationsList"),
+  observationsHint: document.getElementById("observationsHint"),
 };
 
 init();
 
 async function init() {
   updateDownloadLink();
+  await loadResultsManifest();
   try {
     await loadCsv();
     state.status = "Ready";
@@ -159,21 +165,72 @@ async function fetchCsvText(url) {
 }
 
 async function loadResultsManifest() {
+  if (state.manifestLoaded) {
+    return state.manifestFiles;
+  }
   try {
     const response = await fetch(RESULTS_MANIFEST_URL, { cache: "no-store" });
     if (!response.ok) {
-      return [];
+      throw new Error("Missing manifest");
     }
     const data = await response.json();
     if (!data || !Array.isArray(data.files)) {
-      return [];
+      throw new Error("Invalid manifest");
     }
-    return data.files
-      .map((file) => sanitizeResultsFilename(file))
-      .filter((file) => file && file.toLowerCase() !== DEFAULT_RESULTS_FILE);
+    const normalized = normalizeManifestEntries(data.files);
+    state.manifestFiles = normalized.files;
+    state.observationsByFile = normalized.observationsByFile;
+    state.manifestLoaded = true;
+    return state.manifestFiles;
   } catch {
+    state.manifestLoaded = true;
+    state.manifestFiles = [];
+    state.observationsByFile = {};
     return [];
   }
+}
+
+function normalizeManifestEntries(entries) {
+  const files = [];
+  const observationsByFile = {};
+  entries.forEach((entry) => {
+    const fileName =
+      typeof entry === "string" ? entry : entry?.file ? String(entry.file) : "";
+    const cleaned = sanitizeResultsFilename(fileName);
+    if (!cleaned || cleaned.toLowerCase() === DEFAULT_RESULTS_FILE) {
+      return;
+    }
+    if (!files.includes(cleaned)) {
+      files.push(cleaned);
+    }
+    if (entry && typeof entry === "object" && Array.isArray(entry.observations)) {
+      const notes = entry.observations
+        .map((note) => (note == null ? "" : String(note).trim()))
+        .filter((note) => note.length > 0);
+      if (notes.length > 0) {
+        observationsByFile[cleaned] = notes;
+      }
+    }
+  });
+  return { files, observationsByFile };
+}
+
+function renderObservations() {
+  if (!elements.observationsList || !elements.observationsHint) {
+    return;
+  }
+  elements.observationsList.innerHTML = "";
+  const observations = state.observationsByFile?.[state.resultsFile];
+  if (!observations || observations.length === 0) {
+    elements.observationsHint.style.display = "block";
+    return;
+  }
+  observations.forEach((note) => {
+    const li = document.createElement("li");
+    li.textContent = note;
+    elements.observationsList.appendChild(li);
+  });
+  elements.observationsHint.style.display = "none";
 }
 
 function parseCsvText(text) {
@@ -250,6 +307,7 @@ function render() {
   updateSummary();
   updateStatus();
   state.modelColors = buildModelColorMap();
+  renderObservations();
   renderProgressChart();
   renderTable();
 }

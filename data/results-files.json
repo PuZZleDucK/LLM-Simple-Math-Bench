@@ -1,8 +1,37 @@
 {
   "files": [
-    "results-gemma.csv",
-    "results-granite.csv",
-    "results-deepseek.csv",
-    "results-qwen3.csv"
+    {
+      "file": "results-gemma.csv",
+      "observations": [
+        "The 3n variants (e2b/e4b) outperform baseline Gemma 3 at similar sizes.",
+        "Gemma3-12b does not beat gemma3n-e4b, so variant choice matters more than size.",
+        "Gemma3-4b sits near 50% overall, clearly ahead of 1b and 270m but still mid-pack."
+      ]
+    },
+    {
+      "file": "results-granite.csv",
+      "observations": [
+        "Granite4-tiny-h leads the family, edging out granite4-1b and granite4-micro.",
+        "Granite3-moe-1b is the weakest, with small MoE variants lagging overall.",
+        "Granite3-3-8b and granite3-dense-8b land mid-pack, not clearly better than smaller granite4 variants."
+      ]
+    },
+    {
+      "file": "results-deepseek.csv",
+      "observations": [
+        "Deepseek-r1-8b is the clear standout, far ahead of the 1.5b–14b cluster.",
+        "Deepseek-r1-14b and deepseek-r1-7b cluster around ~50%, with limited gains from size alone.",
+        "Josiefied deepseek-r1-0528-qwen3-8b tracks deepseek-r1-7b closely on this test mix."
+      ]
+    },
+    {
+      "file": "results-qwen3.csv",
+      "observations": [
+        "The VL line is strongest; qwen3-vl-8b achieves a perfect score.",
+        "Qwen3-8b and qwen3-14b are very close, suggesting diminishing returns past 8b.",
+        "Qwen3 Coder 30B underperforms general Qwen3 models on these math tests.",
+        "Qwen3-vl-30b is a negative outlier, weaker than smaller VL variants."
+      ]
+    }
   ]
 }
