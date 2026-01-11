@@ -72,6 +72,12 @@ const elements = {
   totalTests: document.getElementById("totalTests"),
   maxScore: document.getElementById("maxScore"),
   modelCount: document.getElementById("modelCount"),
+  winningModel: document.getElementById("winningModel"),
+  bestAverage: document.getElementById("bestAverage"),
+  minAverage: document.getElementById("minAverage"),
+  meanAverage: document.getElementById("meanAverage"),
+  medianAverage: document.getElementById("medianAverage"),
+  fastestTime: document.getElementById("fastestTime"),
   lastUpdated: document.getElementById("lastUpdated"),
   progressChart: document.getElementById("progressChart"),
   resultsTable: document.getElementById("resultsTable"),
@@ -606,6 +612,31 @@ function updateSummary() {
   elements.totalTests.textContent = String(state.tests.length);
   elements.maxScore.textContent = String(maxTotal);
   elements.modelCount.textContent = String(state.modelOrder.length);
+  const summaries = summarizeModelAverages();
+  if (elements.winningModel) {
+    elements.winningModel.textContent = summaries.winnerLabel ?? "--";
+    if (summaries.winnerName) {
+      elements.winningModel.title = summaries.winnerName;
+    }
+  }
+  if (elements.bestAverage) {
+    elements.bestAverage.textContent = summaries.bestAverage ?? "--";
+  }
+  if (elements.minAverage) {
+    elements.minAverage.textContent = summaries.minAverage ?? "--";
+  }
+  if (elements.meanAverage) {
+    elements.meanAverage.textContent = summaries.meanAverage ?? "--";
+  }
+  if (elements.medianAverage) {
+    elements.medianAverage.textContent = summaries.medianAverage ?? "--";
+  }
+  if (elements.fastestTime) {
+    elements.fastestTime.textContent = summaries.fastestTime ?? "--";
+    if (summaries.fastestModel) {
+      elements.fastestTime.title = summaries.fastestModel;
+    }
+  }
   if (state.lastUpdated) {
     elements.lastUpdated.textContent = `Last updated: ${formatTimestamp(
       state.lastUpdated
@@ -616,7 +647,9 @@ function updateSummary() {
 }
 
 function updateStatus() {
-  elements.statusPill.textContent = state.status;
+  if (elements.statusPill) {
+    elements.statusPill.textContent = state.status;
+  }
   if (state.error) {
     elements.tableHint.textContent = "CSV missing or inaccessible.";
   } else if (state.tests.length === 0) {
@@ -685,7 +718,7 @@ function renderTable() {
     const nameWrap = document.createElement("div");
     nameWrap.className = "model-name";
     const nameText = document.createElement("span");
-    nameText.textContent = formatModelName(model);
+    nameText.textContent = formatModelLabel(model);
     nameText.className = "cell-mono";
     nameText.title = model;
     const modelColor = state.modelColors?.[model];
@@ -779,6 +812,83 @@ function calculateAverage(modelName) {
   return totalScore / totalMax;
 }
 
+function summarizeModelAverages() {
+  const averages = [];
+  let best = null;
+  let worst = null;
+
+  state.modelOrder.forEach((model) => {
+    const avg = calculateAverage(model);
+    if (avg === null) {
+      return;
+    }
+    averages.push(avg);
+    if (!best || avg > best.value || (avg === best.value && model < best.model)) {
+      best = { model, value: avg };
+    }
+    if (!worst || avg < worst.value || (avg === worst.value && model < worst.model)) {
+      worst = { model, value: avg };
+    }
+  });
+
+  const averageSummary = {
+    winnerName: best?.model ?? null,
+    winnerLabel: best ? formatModelLabel(best.model) : null,
+    bestAverage: best ? formatPercent(best.value) : null,
+    minAverage: worst ? formatPercent(worst.value) : null,
+    meanAverage: null,
+    medianAverage: null,
+    fastestTime: null,
+    fastestModel: null,
+  };
+
+  if (averages.length > 0) {
+    const mean = averages.reduce((sum, value) => sum + value, 0) / averages.length;
+    averageSummary.meanAverage = formatPercent(mean);
+    const sorted = [...averages].sort((a, b) => a - b);
+    const mid = Math.floor(sorted.length / 2);
+    const median =
+      sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
+    averageSummary.medianAverage = formatPercent(median);
+  }
+
+  const fastest = calculateFastestTotalTime();
+  if (fastest) {
+    averageSummary.fastestTime = formatDurationNs(fastest.duration) ?? "--";
+    averageSummary.fastestModel = fastest.model;
+  }
+
+  return averageSummary;
+}
+
+function calculateFastestTotalTime() {
+  let fastest = null;
+  state.modelOrder.forEach((model) => {
+    const results = state.results[model] || {};
+    let total = 0;
+    let counted = 0;
+    state.tests.forEach((test) => {
+      const result = results[test.id];
+      if (!result) {
+        return;
+      }
+      const duration = toNumber(result.total_duration);
+      if (!Number.isFinite(duration) || duration <= 0) {
+        return;
+      }
+      total += duration;
+      counted += 1;
+    });
+    if (counted === 0) {
+      return;
+    }
+    if (!fastest || total < fastest.duration) {
+      fastest = { model, duration: total };
+    }
+  });
+  return fastest;
+}
+
 function parseCsv(text) {
   const rows = [];
   let row = [];
@@ -833,6 +943,10 @@ function formatScore(score, maxScore) {
   return `${score}/${maxScore}`;
 }
 
+function formatPercent(value) {
+  return `${(value * 100).toFixed(1)}%`;
+}
+
 function formatResultTooltip(result, test) {
   const lines = [];
   if (result.error) {
@@ -848,11 +962,43 @@ function formatResultTooltip(result, test) {
 }
 
 function formatModelName(name) {
-  const limit = 25;
-  if (!name || name.length <= limit) {
+  if (!name) {
     return name;
   }
-  return `${name.slice(0, limit - 3)}...`;
+  let cleaned = String(name).trim();
+  if (!cleaned) {
+    return cleaned;
+  }
+  cleaned = cleaned.replace(/^config-/i, "");
+  cleaned = cleaned.replace(/:latest$/i, "");
+  const limit = 25;
+  if (cleaned.length <= limit) {
+    return cleaned;
+  }
+  return `${cleaned.slice(0, limit - 3)}...`;
+}
+
+function formatModelLabel(name) {
+  const cleanedName = formatModelName(name);
+  const sizeB = state.modelMeta?.[name]?.sizeB;
+  if (!Number.isFinite(sizeB)) {
+    return cleanedName;
+  }
+  const formatted = formatModelSizeB(sizeB);
+  return `[${formatted}] ${cleanedName}`;
+}
+
+function formatModelSizeB(sizeB) {
+  if (!Number.isFinite(sizeB) || sizeB <= 0) {
+    return "--";
+  }
+  if (sizeB < 1) {
+    return `${sizeB.toFixed(2)}B`;
+  }
+  if (sizeB < 10) {
+    return `${sizeB.toFixed(1)}B`;
+  }
+  return `${sizeB.toFixed(0)}B`;
 }
 
 function formatDurationNs(durationNs) {
