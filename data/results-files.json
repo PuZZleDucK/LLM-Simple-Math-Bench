@@ -1,6 +1,8 @@
 {
   "files": [
     "results-gemma.csv",
-    "results-granite.csv"
+    "results-granite.csv",
+    "results-deepseek.csv",
+    "results-qwen3.csv"
   ]
 }
